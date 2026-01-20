@@ -1,20 +1,18 @@
 const express = require('express');
-const createCrudRouter = require('../crudRouter');
-
-const merchantsController = require('../../controllers/Merchant/merchantsController');
-const branchesController = require('../../controllers/Merchant/branchesController');
-const usersController = require('../../controllers/Merchant/usersController');
-const permissionsController = require('../../controllers/Merchant/permissionsController');
-const branchRolesController = require('../../controllers/Merchant/branchRolesController');
-const branchRolePermissionsController = require('../../controllers/Merchant/branchRolePermissionsController');
+const merchantsRoutes = require('./merchants');
+const branchesRoutes = require('./branches');
+const usersRoutes = require('./users');
+const permissionsRoutes = require('./permissions');
+const branchRolesRoutes = require('./branchRoles');
+const branchRolePermissionsRoutes = require('./branchRolePermissions');
 
 const router = express.Router();
 
-router.use('/merchants', createCrudRouter(merchantsController));
-router.use('/branches', createCrudRouter(branchesController));
-router.use('/users', createCrudRouter(usersController));
-router.use('/permissions', createCrudRouter(permissionsController));
-router.use('/branch-roles', createCrudRouter(branchRolesController));
-router.use('/branch-role-permissions', createCrudRouter(branchRolePermissionsController));
+router.use('/merchants', merchantsRoutes);
+router.use('/branches', branchesRoutes);
+router.use('/users', usersRoutes);
+router.use('/permissions', permissionsRoutes);
+router.use('/branch-roles', branchRolesRoutes);
+router.use('/branch-role-permissions', branchRolePermissionsRoutes);
 
 module.exports = router;

@@ -1,16 +1,14 @@
 const express = require('express');
-const createCrudRouter = require('../crudRouter');
-
-const platformAdminsController = require('../../controllers/Platform/platformAdminsController');
-const platformRolesController = require('../../controllers/Platform/platformRolesController');
-const platformPermissionsController = require('../../controllers/Platform/platformPermissionsController');
-const platformRolePermissionsController = require('../../controllers/Platform/platformRolePermissionsController');
+const platformAdminsRoutes = require('./platformAdmins');
+const platformRolesRoutes = require('./platformRoles');
+const platformPermissionsRoutes = require('./platformPermissions');
+const platformRolePermissionsRoutes = require('./platformRolePermissions');
 
 const router = express.Router();
 
-router.use('/platform-admins', createCrudRouter(platformAdminsController));
-router.use('/platform-roles', createCrudRouter(platformRolesController));
-router.use('/platform-permissions', createCrudRouter(platformPermissionsController));
-router.use('/platform-role-permissions', createCrudRouter(platformRolePermissionsController));
+router.use('/platform-admins', platformAdminsRoutes);
+router.use('/platform-roles', platformRolesRoutes);
+router.use('/platform-permissions', platformPermissionsRoutes);
+router.use('/platform-role-permissions', platformRolePermissionsRoutes);
 
 module.exports = router;
