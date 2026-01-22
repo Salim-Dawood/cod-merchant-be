@@ -1,6 +1,7 @@
 const createRepo = require('../base');
+const pool = require('../../db');
 
-module.exports = createRepo('users', [
+const repo = createRepo('users', [
   'merchant_id',
   'branch_id',
   'merchant_role_id',
@@ -12,3 +13,10 @@ module.exports = createRepo('users', [
   'status',
   'last_login_at'
 ]);
+
+repo.findByEmail = async (email) => {
+  const [rows] = await pool.query('SELECT * FROM users WHERE email = ? LIMIT 1', [email]);
+  return rows[0] || null;
+};
+
+module.exports = repo;

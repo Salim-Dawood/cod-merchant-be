@@ -1,13 +1,13 @@
 const express = require('express');
-const authController = require('../../controllers/Platform/authController');
-const platformAuth = require('../../middleware/platformAuth');
+const authController = require('../../controllers/Merchant/authController');
+const merchantAuth = require('../../middleware/merchantAuth');
 
 const router = express.Router();
 
-router.post('/login', authController.login);
 router.post('/register', authController.register);
+router.post('/login', authController.login);
 router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
-router.get('/me', platformAuth, authController.me);
+router.get('/me', merchantAuth, authController.me);
 
 module.exports = router;

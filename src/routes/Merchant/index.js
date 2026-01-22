@@ -1,6 +1,6 @@
 const express = require('express');
-const platformAuth = require('../../middleware/platformAuth');
-const requirePlatformPermission = require('../../middleware/platformPermissions');
+const allowPlatformOrMerchant = require('../../middleware/platformOrMerchant');
+const authRoutes = require('./auth');
 const merchantsRoutes = require('./merchants');
 const branchesRoutes = require('./branches');
 const usersRoutes = require('./users');
@@ -10,10 +10,10 @@ const branchRolePermissionsRoutes = require('./branchRolePermissions');
 
 const router = express.Router();
 
-router.use(platformAuth);
+router.use('/auth', authRoutes);
 router.use(
   '/merchants',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-merchant',
     POST: 'create-merchant',
     PUT: 'update-merchant',
@@ -23,7 +23,7 @@ router.use(
 );
 router.use(
   '/branches',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-branch',
     POST: 'create-branch',
     PUT: 'update-branch',
@@ -33,7 +33,7 @@ router.use(
 );
 router.use(
   '/users',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-user',
     POST: 'create-user',
     PUT: 'update-user',
@@ -43,7 +43,7 @@ router.use(
 );
 router.use(
   '/permissions',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-permission',
     POST: 'create-permission',
     PUT: 'update-permission',
@@ -53,7 +53,7 @@ router.use(
 );
 router.use(
   '/branch-roles',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-branch-role',
     POST: 'create-branch-role',
     PUT: 'update-branch-role',
@@ -63,7 +63,7 @@ router.use(
 );
 router.use(
   '/branch-role-permissions',
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-branch-role-permission',
     POST: 'create-branch-role-permission',
     PUT: 'update-branch-role-permission',

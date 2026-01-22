@@ -7,6 +7,7 @@ const REFRESH_TTL = process.env.JWT_REFRESH_TTL || '7d';
 function signAccessToken(admin) {
   return jwt.sign(
     {
+      type: 'platform',
       sub: admin.id,
       email: admin.email,
       platform_role_id: admin.platform_role_id || null
@@ -95,6 +96,37 @@ async function logout(req, res) {
   return res.status(204).send();
 }
 
+async function register(req, res, next) {
+  try {
+    const { first_name, last_name, email, password, platform_role_id, status } = req.body || {};
+    if (!first_name || !last_name || !email || !password) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const existing = await platformAdminsRepo.findByEmail(email);
+    if (existing) {
+      return res.status(409).json({ error: 'Email already exists' });
+    }
+
+    const result = await platformAdminsRepo.create({
+      first_name,
+      last_name,
+      email,
+      password,
+      platform_role_id: platform_role_id || null,
+      status: status || 'active'
+    });
+
+    if (!result.insertId) {
+      return res.status(400).json({ error: 'Registration failed' });
+    }
+
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 async function me(req, res, next) {
   try {
     const admin = await platformAdminsRepo.findById(req.user.sub);
@@ -119,5 +151,6 @@ module.exports = {
   login,
   refresh,
   logout,
-  me
+  me,
+  register
 };
