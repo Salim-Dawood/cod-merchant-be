@@ -16,6 +16,10 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use('/api/v1', apiRoutes);
 
+app.get('/', (req, res) => {
+  res.status(200).send('Backend is running ✅');
+});
+
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
