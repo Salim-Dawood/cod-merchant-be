@@ -17,8 +17,21 @@ function isPositiveNumber(value) {
   return Number.isFinite(numberValue) && numberValue > 0;
 }
 
+function addError(errors, field, message) {
+  if (!errors[field]) {
+    errors[field] = [];
+  }
+  errors[field].push(message);
+}
+
+function hasErrors(errors) {
+  return Object.keys(errors).length > 0;
+}
+
 module.exports = {
   isNonEmptyString,
   isValidEmail,
-  isPositiveNumber
+  isPositiveNumber,
+  addError,
+  hasErrors
 };

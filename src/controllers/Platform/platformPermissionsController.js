@@ -1,5 +1,5 @@
 const service = require('../../services/Platform/platformPermissionsService');
-const { isNonEmptyString, isPositiveNumber } = require('../../utils/validation');
+const { isNonEmptyString, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -33,14 +33,18 @@ async function create(req, res, next) {
       return res.status(400).json({ error: 'Empty payload' });
     }
     const { key_name, description, group_name } = payload;
+    const errors = {};
     if (!isNonEmptyString(key_name)) {
-      return res.status(400).json({ error: 'key_name is required' });
+      addError(errors, 'key_name', 'key_name is required');
     }
     if (description !== undefined && description !== null && !isNonEmptyString(description)) {
-      return res.status(400).json({ error: 'description must be a non-empty string' });
+      addError(errors, 'description', 'description must be a non-empty string');
     }
     if (group_name !== undefined && group_name !== null && !isNonEmptyString(group_name)) {
-      return res.status(400).json({ error: 'group_name must be a non-empty string' });
+      addError(errors, 'group_name', 'group_name must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.create(payload);
     if (!result.insertId) {
@@ -66,16 +70,20 @@ async function update(req, res, next) {
     const payloadKeys = Object.keys(payload);
     const invalidKey = payloadKeys.find((key) => !allowedKeys.includes(key));
     if (invalidKey) {
-      return res.status(400).json({ error: `Unknown field: ${invalidKey}` });
+      return res.status(400).json({ errors: { [invalidKey]: ['Unknown field'] } });
     }
+    const errors = {};
     if (payload.key_name !== undefined && !isNonEmptyString(payload.key_name)) {
-      return res.status(400).json({ error: 'key_name must be a non-empty string' });
+      addError(errors, 'key_name', 'key_name must be a non-empty string');
     }
     if (payload.description !== undefined && payload.description !== null && !isNonEmptyString(payload.description)) {
-      return res.status(400).json({ error: 'description must be a non-empty string' });
+      addError(errors, 'description', 'description must be a non-empty string');
     }
     if (payload.group_name !== undefined && payload.group_name !== null && !isNonEmptyString(payload.group_name)) {
-      return res.status(400).json({ error: 'group_name must be a non-empty string' });
+      addError(errors, 'group_name', 'group_name must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.update(id, payload);
     if (!result.affectedRows) {

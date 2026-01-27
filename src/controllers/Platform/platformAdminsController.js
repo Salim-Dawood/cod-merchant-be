@@ -1,5 +1,5 @@
 const service = require('../../services/Platform/platformAdminsService');
-const { isNonEmptyString, isValidEmail, isPositiveNumber } = require('../../utils/validation');
+const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -33,17 +33,29 @@ async function create(req, res, next) {
       return res.status(400).json({ error: 'Empty payload' });
     }
     const { first_name, last_name, email, password, platform_role_id, status } = payload;
-    if (!isNonEmptyString(first_name) || !isNonEmptyString(last_name) || !isValidEmail(email) || !isNonEmptyString(password)) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const errors = {};
+    if (!isNonEmptyString(first_name)) {
+      addError(errors, 'first_name', 'First name is required');
     }
-    if (password.trim().length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!isNonEmptyString(last_name)) {
+      addError(errors, 'last_name', 'Last name is required');
+    }
+    if (!isValidEmail(email)) {
+      addError(errors, 'email', 'Email is required and must be valid');
+    }
+    if (!isNonEmptyString(password)) {
+      addError(errors, 'password', 'Password is required');
+    } else if (password.trim().length < 6) {
+      addError(errors, 'password', 'Password must be at least 6 characters');
     }
     if (platform_role_id !== undefined && platform_role_id !== null && !isPositiveNumber(platform_role_id)) {
-      return res.status(400).json({ error: 'platform_role_id must be a positive number' });
+      addError(errors, 'platform_role_id', 'platform_role_id must be a positive number');
     }
     if (status !== undefined && status !== null && !isNonEmptyString(status)) {
-      return res.status(400).json({ error: 'status must be a non-empty string' });
+      addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.create(payload);
     if (!result.insertId) {
@@ -69,30 +81,33 @@ async function update(req, res, next) {
     const payloadKeys = Object.keys(payload);
     const invalidKey = payloadKeys.find((key) => !allowedKeys.includes(key));
     if (invalidKey) {
-      return res.status(400).json({ error: `Unknown field: ${invalidKey}` });
+      return res.status(400).json({ errors: { [invalidKey]: ['Unknown field'] } });
     }
+    const errors = {};
     if (payload.first_name !== undefined && !isNonEmptyString(payload.first_name)) {
-      return res.status(400).json({ error: 'first_name must be a non-empty string' });
+      addError(errors, 'first_name', 'first_name must be a non-empty string');
     }
     if (payload.last_name !== undefined && !isNonEmptyString(payload.last_name)) {
-      return res.status(400).json({ error: 'last_name must be a non-empty string' });
+      addError(errors, 'last_name', 'last_name must be a non-empty string');
     }
     if (payload.email !== undefined && !isValidEmail(payload.email)) {
-      return res.status(400).json({ error: 'email must be a valid email' });
+      addError(errors, 'email', 'email must be a valid email');
     }
     if (payload.password !== undefined) {
       if (!isNonEmptyString(payload.password)) {
-        return res.status(400).json({ error: 'password must be a non-empty string' });
-      }
-      if (payload.password.trim().length < 6) {
-        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+        addError(errors, 'password', 'password must be a non-empty string');
+      } else if (payload.password.trim().length < 6) {
+        addError(errors, 'password', 'Password must be at least 6 characters');
       }
     }
     if (payload.platform_role_id !== undefined && payload.platform_role_id !== null && !isPositiveNumber(payload.platform_role_id)) {
-      return res.status(400).json({ error: 'platform_role_id must be a positive number' });
+      addError(errors, 'platform_role_id', 'platform_role_id must be a positive number');
     }
     if (payload.status !== undefined && payload.status !== null && !isNonEmptyString(payload.status)) {
-      return res.status(400).json({ error: 'status must be a non-empty string' });
+      addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.update(id, payload);
     if (!result.affectedRows) {

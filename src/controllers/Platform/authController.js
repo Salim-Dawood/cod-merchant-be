@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const platformAdminsRepo = require('../../repository/Platform/platformAdminsRepo');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
-const { isNonEmptyString, isValidEmail } = require('../../utils/validation');
+const { isNonEmptyString, isValidEmail, addError, hasErrors } = require('../../utils/validation');
 
 const ACCESS_TTL = process.env.JWT_ACCESS_TTL || '15m';
 const REFRESH_TTL = process.env.JWT_REFRESH_TTL || '7d';
@@ -39,8 +39,15 @@ function cookieOptions() {
 async function login(req, res, next) {
   try {
     const { email, password } = req.body || {};
-    if (!isValidEmail(email) || !isNonEmptyString(password)) {
-      return res.status(400).json({ error: 'Email and password required' });
+    const errors = {};
+    if (!isValidEmail(email)) {
+      addError(errors, 'email', 'Email is required and must be valid');
+    }
+    if (!isNonEmptyString(password)) {
+      addError(errors, 'password', 'Password is required');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
 
     const admin = await platformAdminsRepo.findByEmail(email);
@@ -115,25 +122,29 @@ async function logout(req, res) {
 async function register(req, res, next) {
   try {
     const { first_name, last_name, email, password, platform_role_id, status } = req.body || {};
-    if (
-      !isNonEmptyString(first_name) ||
-      !isNonEmptyString(last_name) ||
-      !isValidEmail(email) ||
-      !isNonEmptyString(password)
-    ) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    const errors = {};
+    if (!isNonEmptyString(first_name)) {
+      addError(errors, 'first_name', 'First name is required');
     }
-
-    if (password.trim().length < 6) {
-      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    if (!isNonEmptyString(last_name)) {
+      addError(errors, 'last_name', 'Last name is required');
     }
-
+    if (!isValidEmail(email)) {
+      addError(errors, 'email', 'Email is required and must be valid');
+    }
+    if (!isNonEmptyString(password)) {
+      addError(errors, 'password', 'Password is required');
+    } else if (password.trim().length < 6) {
+      addError(errors, 'password', 'Password must be at least 6 characters');
+    }
     if (platform_role_id !== undefined && platform_role_id !== null && Number.isNaN(Number(platform_role_id))) {
-      return res.status(400).json({ error: 'platform_role_id must be a number' });
+      addError(errors, 'platform_role_id', 'platform_role_id must be a number');
     }
-
     if (status !== undefined && status !== null && !isNonEmptyString(status)) {
-      return res.status(400).json({ error: 'status must be a non-empty string' });
+      addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
 
     const existing = await platformAdminsRepo.findByEmail(email);
