@@ -21,10 +21,12 @@ function requestLogger(req, res, next) {
   next();
 }
 
-const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+const defaultOrigins = ['http://localhost:5173', 'https://cod-merchant-frontend-1.onrender.com'];
+const envOrigins = (process.env.CORS_ORIGIN || '')
   .split(',')
   .map((value) => value.trim())
   .filter(Boolean);
+const corsOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
 app.use(cors({
   origin: (origin, callback) => {
