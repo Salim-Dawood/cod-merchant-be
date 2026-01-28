@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const platformAdminsRepo = require('../../repository/Platform/platformAdminsRepo');
+const usersRepo = require('../../repository/Merchant/usersRepo');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 const { isNonEmptyString, isValidEmail, addError, hasErrors } = require('../../utils/validation');
 
@@ -35,6 +36,29 @@ function signRefreshToken(admin) {
   );
 }
 
+function signMerchantAccessToken(user) {
+  return jwt.sign(
+    {
+      type: 'merchant',
+      sub: user.id,
+      email: user.email,
+      merchant_id: user.merchant_id,
+      branch_id: user.branch_id,
+      merchant_role_id: user.merchant_role_id || null
+    },
+    process.env.JWT_ACCESS_SECRET,
+    { expiresIn: ACCESS_TTL }
+  );
+}
+
+function signMerchantRefreshToken(user) {
+  return jwt.sign(
+    { type: 'merchant', sub: user.id },
+    process.env.JWT_REFRESH_SECRET,
+    { expiresIn: REFRESH_TTL }
+  );
+}
+
 function cookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
   return {
@@ -59,37 +83,73 @@ async function login(req, res, next) {
     }
 
     const admin = await platformAdminsRepo.findByEmail(email);
-    if (!admin) {
+    if (admin) {
+      let passwordValid = false;
+      if (isHashed(admin.password)) {
+        passwordValid = await verifyPassword(password, admin.password);
+      } else if (admin.password === password) {
+        passwordValid = true;
+        const nextHash = await hashPassword(password);
+        await platformAdminsRepo.update(admin.id, { password: nextHash });
+      }
+
+      if (!passwordValid) {
+        return res.status(401).json({ error: 'Invalid credentials' });
+      }
+
+      const accessToken = signAccessToken(admin);
+      const refreshToken = signRefreshToken(admin);
+
+      res.cookie('access_token', accessToken, { ...cookieOptions(), maxAge: 1000 * 60 * 15 });
+      res.cookie('refresh_token', refreshToken, { ...cookieOptions(), maxAge: 1000 * 60 * 60 * 24 * 7 });
+
+      await platformAdminsRepo.update(admin.id, { last_login_at: new Date() });
+
+      return res.json({
+        id: admin.id,
+        email: admin.email,
+        first_name: admin.first_name,
+        last_name: admin.last_name,
+        platform_role_id: admin.platform_role_id || null,
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+    }
+
+    const user = await usersRepo.findByEmail(email);
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     let passwordValid = false;
-    if (isHashed(admin.password)) {
-      passwordValid = await verifyPassword(password, admin.password);
-    } else if (admin.password === password) {
+    if (isHashed(user.password)) {
+      passwordValid = await verifyPassword(password, user.password);
+    } else if (user.password === password) {
       passwordValid = true;
       const nextHash = await hashPassword(password);
-      await platformAdminsRepo.update(admin.id, { password: nextHash });
+      await usersRepo.update(user.id, { password: nextHash });
     }
 
     if (!passwordValid) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const accessToken = signAccessToken(admin);
-    const refreshToken = signRefreshToken(admin);
+    const accessToken = signMerchantAccessToken(user);
+    const refreshToken = signMerchantRefreshToken(user);
 
-    res.cookie('access_token', accessToken, { ...cookieOptions(), maxAge: 1000 * 60 * 15 });
-    res.cookie('refresh_token', refreshToken, { ...cookieOptions(), maxAge: 1000 * 60 * 60 * 24 * 7 });
+    res.cookie('merchant_access_token', accessToken, { ...cookieOptions(), maxAge: 1000 * 60 * 15 });
+    res.cookie('merchant_refresh_token', refreshToken, { ...cookieOptions(), maxAge: 1000 * 60 * 60 * 24 * 7 });
 
-    await platformAdminsRepo.update(admin.id, { last_login_at: new Date() });
+    await usersRepo.update(user.id, { last_login_at: new Date() });
 
     return res.json({
-      id: admin.id,
-      email: admin.email,
-      first_name: admin.first_name,
-      last_name: admin.last_name,
-      platform_role_id: admin.platform_role_id || null,
+      id: user.id,
+      email: user.email,
+      first_name: user.first_name,
+      last_name: user.last_name,
+      merchant_id: user.merchant_id,
+      branch_id: user.branch_id,
+      merchant_role_id: user.merchant_role_id || null,
       access_token: accessToken,
       refresh_token: refreshToken
     });

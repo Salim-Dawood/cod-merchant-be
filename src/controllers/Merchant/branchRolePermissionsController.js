@@ -1,4 +1,5 @@
 const service = require('../../services/Merchant/branchRolePermissionsService');
+const { isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -12,7 +13,7 @@ async function list(req, res, next) {
 async function getById(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const row = await service.getById(id);
@@ -31,6 +32,17 @@ async function create(req, res, next) {
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
     }
+    const { branch_role_id, permission_id } = payload;
+    const errors = {};
+    if (!isPositiveNumber(branch_role_id)) {
+      addError(errors, 'branch_role_id', 'branch_role_id is required and must be a positive number');
+    }
+    if (!isPositiveNumber(permission_id)) {
+      addError(errors, 'permission_id', 'permission_id is required and must be a positive number');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
+    }
     const result = await service.create(payload);
     if (!result.insertId) {
       return res.status(400).json({ error: 'Insert failed' });
@@ -44,12 +56,28 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const payload = req.body || {};
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
+    }
+    const allowedKeys = ['branch_role_id', 'permission_id'];
+    const payloadKeys = Object.keys(payload);
+    const invalidKey = payloadKeys.find((key) => !allowedKeys.includes(key));
+    if (invalidKey) {
+      return res.status(400).json({ errors: { [invalidKey]: ['Unknown field'] } });
+    }
+    const errors = {};
+    if (payload.branch_role_id !== undefined && !isPositiveNumber(payload.branch_role_id)) {
+      addError(errors, 'branch_role_id', 'branch_role_id must be a positive number');
+    }
+    if (payload.permission_id !== undefined && !isPositiveNumber(payload.permission_id)) {
+      addError(errors, 'permission_id', 'permission_id must be a positive number');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.update(id, payload);
     if (!result.affectedRows) {
@@ -64,7 +92,7 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const result = await service.remove(id);

@@ -20,6 +20,34 @@ async function getOrCreate(table, whereClause, whereParams, data) {
   return result.insertId;
 }
 
+async function seedMerchantPermissions(actions) {
+  const merchantPermissionResources = [
+    { key: 'merchant', group: 'Merchant' },
+    { key: 'branch', group: 'Merchant' },
+    { key: 'user', group: 'Merchant' },
+    { key: 'permission', group: 'Merchant' },
+    { key: 'branch-role', group: 'Merchant' },
+    { key: 'branch-role-permission', group: 'Merchant' },
+    { key: 'product', group: 'Catalog' },
+    { key: 'order', group: 'Orders' }
+  ];
+
+  for (const resource of merchantPermissionResources) {
+    for (const action of actions) {
+      await getOrCreate(
+        'permissions',
+        'key_name = ?',
+        [`${action.key}-${resource.key}`],
+        {
+          key_name: `${action.key}-${resource.key}`,
+          description: `${action.label} ${resource.key.replace(/-/g, ' ')}`,
+          group_name: resource.group
+        }
+      );
+    }
+  }
+}
+
 async function run() {
   const permissionResources = [
     { key: 'platform-admin', group: 'Platform' },
@@ -54,6 +82,8 @@ async function run() {
       );
     }
   }
+
+  await seedMerchantPermissions(actions);
 
   const superAdminRoleId = await getOrCreate(
     'platform_roles',
@@ -150,14 +180,14 @@ async function run() {
     'permissions',
     'key_name = ?',
     ['create-product'],
-    { key_name: 'create-product', description: 'Create product', group_name: 'Products' }
+    { key_name: 'create-product', description: 'Create product', group_name: 'Catalog' }
   );
 
   const viewOrdersPermId = await getOrCreate(
     'permissions',
     'key_name = ?',
-    ['view-orders'],
-    { key_name: 'view-orders', description: 'View orders', group_name: 'Orders' }
+    ['view-order'],
+    { key_name: 'view-order', description: 'View order', group_name: 'Orders' }
   );
 
   const managerRoleId = await getOrCreate(

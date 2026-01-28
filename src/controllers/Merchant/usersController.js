@@ -1,4 +1,5 @@
 const service = require('../../services/Merchant/usersService');
+const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -12,7 +13,7 @@ async function list(req, res, next) {
 async function getById(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const row = await service.getById(id);
@@ -31,6 +32,50 @@ async function create(req, res, next) {
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
     }
+    const {
+      merchant_id,
+      branch_id,
+      merchant_role_id,
+      first_name,
+      last_name,
+      email,
+      phone,
+      password,
+      status
+    } = payload;
+    const errors = {};
+    if (!isPositiveNumber(merchant_id)) {
+      addError(errors, 'merchant_id', 'merchant_id is required and must be a positive number');
+    }
+    if (!isPositiveNumber(branch_id)) {
+      addError(errors, 'branch_id', 'branch_id is required and must be a positive number');
+    }
+    if (merchant_role_id !== undefined && merchant_role_id !== null && !isPositiveNumber(merchant_role_id)) {
+      addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
+    }
+    if (!isNonEmptyString(first_name)) {
+      addError(errors, 'first_name', 'first_name is required');
+    }
+    if (!isNonEmptyString(last_name)) {
+      addError(errors, 'last_name', 'last_name is required');
+    }
+    if (!isValidEmail(email)) {
+      addError(errors, 'email', 'email is required and must be valid');
+    }
+    if (!isNonEmptyString(password)) {
+      addError(errors, 'password', 'password is required');
+    } else if (password.trim().length < 6) {
+      addError(errors, 'password', 'password must be at least 6 characters');
+    }
+    if (phone !== undefined && phone !== null && !isNonEmptyString(phone)) {
+      addError(errors, 'phone', 'phone must be a non-empty string');
+    }
+    if (status !== undefined && status !== null && !isNonEmptyString(status)) {
+      addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
+    }
     const result = await service.create(payload);
     if (!result.insertId) {
       return res.status(400).json({ error: 'Insert failed' });
@@ -44,12 +89,61 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const payload = req.body || {};
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
+    }
+    const allowedKeys = [
+      'merchant_id',
+      'branch_id',
+      'merchant_role_id',
+      'first_name',
+      'last_name',
+      'email',
+      'phone',
+      'password',
+      'status'
+    ];
+    const payloadKeys = Object.keys(payload);
+    const invalidKey = payloadKeys.find((key) => !allowedKeys.includes(key));
+    if (invalidKey) {
+      return res.status(400).json({ errors: { [invalidKey]: ['Unknown field'] } });
+    }
+    const errors = {};
+    if (payload.merchant_id !== undefined && !isPositiveNumber(payload.merchant_id)) {
+      addError(errors, 'merchant_id', 'merchant_id must be a positive number');
+    }
+    if (payload.branch_id !== undefined && !isPositiveNumber(payload.branch_id)) {
+      addError(errors, 'branch_id', 'branch_id must be a positive number');
+    }
+    if (payload.merchant_role_id !== undefined && payload.merchant_role_id !== null && !isPositiveNumber(payload.merchant_role_id)) {
+      addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
+    }
+    if (payload.first_name !== undefined && !isNonEmptyString(payload.first_name)) {
+      addError(errors, 'first_name', 'first_name must be a non-empty string');
+    }
+    if (payload.last_name !== undefined && !isNonEmptyString(payload.last_name)) {
+      addError(errors, 'last_name', 'last_name must be a non-empty string');
+    }
+    if (payload.email !== undefined && !isValidEmail(payload.email)) {
+      addError(errors, 'email', 'email must be a valid email');
+    }
+    if (payload.password !== undefined && !isNonEmptyString(payload.password)) {
+      addError(errors, 'password', 'password must be a non-empty string');
+    } else if (payload.password !== undefined && payload.password.trim().length < 6) {
+      addError(errors, 'password', 'password must be at least 6 characters');
+    }
+    if (payload.phone !== undefined && payload.phone !== null && !isNonEmptyString(payload.phone)) {
+      addError(errors, 'phone', 'phone must be a non-empty string');
+    }
+    if (payload.status !== undefined && payload.status !== null && !isNonEmptyString(payload.status)) {
+      addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.update(id, payload);
     if (!result.affectedRows) {
@@ -64,7 +158,7 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const result = await service.remove(id);
