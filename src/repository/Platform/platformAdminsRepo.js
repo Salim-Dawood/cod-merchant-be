@@ -25,18 +25,42 @@ const baseQuery = `
 `;
 
 repo.findAll = async () => {
-  const [rows] = await pool.query(baseQuery);
-  return rows;
+  try {
+    const [rows] = await pool.query(baseQuery);
+    return rows;
+  } catch (err) {
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR')) {
+      const [rows] = await pool.query('SELECT * FROM platform_admins');
+      return rows;
+    }
+    throw err;
+  }
 };
 
 repo.findById = async (id) => {
-  const [rows] = await pool.query(`${baseQuery} WHERE pa.id = ?`, [id]);
-  return rows[0] || null;
+  try {
+    const [rows] = await pool.query(`${baseQuery} WHERE pa.id = ?`, [id]);
+    return rows[0] || null;
+  } catch (err) {
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR')) {
+      const [rows] = await pool.query('SELECT * FROM platform_admins WHERE id = ? LIMIT 1', [id]);
+      return rows[0] || null;
+    }
+    throw err;
+  }
 };
 
 repo.findByEmail = async (email) => {
-  const [rows] = await pool.query(`${baseQuery} WHERE pa.email = ? LIMIT 1`, [email]);
-  return rows[0] || null;
+  try {
+    const [rows] = await pool.query(`${baseQuery} WHERE pa.email = ? LIMIT 1`, [email]);
+    return rows[0] || null;
+  } catch (err) {
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR')) {
+      const [rows] = await pool.query('SELECT * FROM platform_admins WHERE email = ? LIMIT 1', [email]);
+      return rows[0] || null;
+    }
+    throw err;
+  }
 };
 
 repo.getPermissions = async (adminId) => {
