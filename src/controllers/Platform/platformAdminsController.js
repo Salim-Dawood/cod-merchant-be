@@ -149,10 +149,32 @@ async function remove(req, res, next) {
   }
 }
 
+async function uploadPhoto(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!isPositiveNumber(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Photo is required' });
+    }
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const url = `${baseUrl}/uploads/${req.file.filename}`;
+    const result = await service.update(id, { avatar_url: url });
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.json({ avatar_url: url });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   list,
   getById,
   create,
   update,
-  remove
+  remove,
+  uploadPhoto
 };

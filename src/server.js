@@ -3,6 +3,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const path = require('path');
+const { uploadDir } = require('./utils/upload');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -43,6 +45,7 @@ app.use(cors({
 app.use(requestLogger);
 app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
+app.use('/uploads', express.static(uploadDir));
 app.use('/api/v1', apiRoutes);
 
 app.get('/', (req, res) => {
