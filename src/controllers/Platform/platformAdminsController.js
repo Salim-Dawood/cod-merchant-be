@@ -32,7 +32,7 @@ async function create(req, res, next) {
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
     }
-    const { first_name, last_name, email, password, platform_role_id, status } = payload;
+    const { first_name, last_name, email, password, platform_role_id, status, avatar_url } = payload;
     const errors = {};
     if (!isNonEmptyString(first_name)) {
       addError(errors, 'first_name', 'First name is required');
@@ -53,6 +53,9 @@ async function create(req, res, next) {
     }
     if (status !== undefined && status !== null && !isNonEmptyString(status)) {
       addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isNonEmptyString(avatar_url)) {
+      addError(errors, 'avatar_url', 'avatar_url must be a non-empty string');
     }
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });
@@ -77,7 +80,15 @@ async function update(req, res, next) {
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
     }
-    const allowedKeys = ['platform_role_id', 'first_name', 'last_name', 'email', 'password', 'status'];
+    const allowedKeys = [
+      'platform_role_id',
+      'first_name',
+      'last_name',
+      'email',
+      'password',
+      'status',
+      'avatar_url'
+    ];
     const payloadKeys = Object.keys(payload);
     const invalidKey = payloadKeys.find((key) => !allowedKeys.includes(key));
     if (invalidKey) {
@@ -105,6 +116,9 @@ async function update(req, res, next) {
     }
     if (payload.status !== undefined && payload.status !== null && !isNonEmptyString(payload.status)) {
       addError(errors, 'status', 'status must be a non-empty string');
+    }
+    if (payload.avatar_url !== undefined && payload.avatar_url !== null && payload.avatar_url !== '' && !isNonEmptyString(payload.avatar_url)) {
+      addError(errors, 'avatar_url', 'avatar_url must be a non-empty string');
     }
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });

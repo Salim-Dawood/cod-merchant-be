@@ -11,8 +11,31 @@ const repo = createRepo('platform_admins', [
   'last_login_at'
 ]);
 
+const baseQuery = `
+  SELECT pa.*, pap.url AS avatar_url
+  FROM platform_admins pa
+  LEFT JOIN platform_admin_photos pap
+    ON pap.id = (
+      SELECT id
+      FROM platform_admin_photos
+      WHERE platform_admin_id = pa.id AND is_active = 1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1
+    )
+`;
+
+repo.findAll = async () => {
+  const [rows] = await pool.query(baseQuery);
+  return rows;
+};
+
+repo.findById = async (id) => {
+  const [rows] = await pool.query(`${baseQuery} WHERE pa.id = ?`, [id]);
+  return rows[0] || null;
+};
+
 repo.findByEmail = async (email) => {
-  const [rows] = await pool.query('SELECT * FROM platform_admins WHERE email = ? LIMIT 1', [email]);
+  const [rows] = await pool.query(`${baseQuery} WHERE pa.email = ? LIMIT 1`, [email]);
   return rows[0] || null;
 };
 

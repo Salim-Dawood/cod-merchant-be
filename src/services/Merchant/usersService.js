@@ -1,4 +1,5 @@
 const repo = require('../../repository/Merchant/usersRepo');
+const photosRepo = require('../../repository/Merchant/userPhotosRepo');
 const { hashPassword } = require('../../utils/password');
 
 module.exports = {
@@ -9,14 +10,26 @@ module.exports = {
     if (payload.password) {
       payload.password = await hashPassword(payload.password);
     }
-    return repo.create(payload);
+    const avatarUrl = payload.avatar_url;
+    delete payload.avatar_url;
+    const result = await repo.create(payload);
+    if (result.insertId) {
+      await photosRepo.setActivePhoto(result.insertId, avatarUrl);
+    }
+    return result;
   },
   update: async (id, data) => {
     const payload = { ...data };
     if (payload.password) {
       payload.password = await hashPassword(payload.password);
     }
-    return repo.update(id, payload);
+    const avatarUrl = payload.avatar_url;
+    delete payload.avatar_url;
+    const result = await repo.update(id, payload);
+    if (result.affectedRows) {
+      await photosRepo.setActivePhoto(id, avatarUrl);
+    }
+    return result;
   },
   remove: (id) => repo.remove(id)
 };
