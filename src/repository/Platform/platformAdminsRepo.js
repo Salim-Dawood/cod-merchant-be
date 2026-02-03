@@ -3,8 +3,6 @@ const pool = require('../../db');
 
 const repo = createRepo('platform_admins', [
   'platform_role_id',
-  'first_name',
-  'last_name',
   'email',
   'password',
   'status',

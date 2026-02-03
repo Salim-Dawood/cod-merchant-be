@@ -136,8 +136,6 @@ async function run() {
     ['admin@cod-merchant.local'],
     {
       platform_role_id: superAdminRoleId,
-      first_name: 'System',
-      last_name: 'Admin',
       email: 'admin@cod-merchant.local',
       password: await hashPassword('change-me'),
       status: 'active'
@@ -219,8 +217,6 @@ async function run() {
       merchant_id: merchantId,
       branch_id: branchId,
       merchant_role_id: managerRoleId,
-      first_name: 'Branch',
-      last_name: 'Manager',
       email: 'manager@cod-merchant.local',
       phone: '+10000000001',
       password: await hashPassword('change-me'),

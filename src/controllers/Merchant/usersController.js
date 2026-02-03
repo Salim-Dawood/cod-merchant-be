@@ -36,8 +36,6 @@ async function create(req, res, next) {
       merchant_id,
       branch_id,
       merchant_role_id,
-      first_name,
-      last_name,
       email,
       phone,
       password,
@@ -53,12 +51,6 @@ async function create(req, res, next) {
     }
     if (merchant_role_id !== undefined && merchant_role_id !== null && !isPositiveNumber(merchant_role_id)) {
       addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
-    }
-    if (!isNonEmptyString(first_name)) {
-      addError(errors, 'first_name', 'first_name is required');
-    }
-    if (!isNonEmptyString(last_name)) {
-      addError(errors, 'last_name', 'last_name is required');
     }
     if (!isValidEmail(email)) {
       addError(errors, 'email', 'email is required and must be valid');
@@ -104,8 +96,6 @@ async function update(req, res, next) {
       'merchant_id',
       'branch_id',
       'merchant_role_id',
-      'first_name',
-      'last_name',
       'email',
       'phone',
       'password',
@@ -126,12 +116,6 @@ async function update(req, res, next) {
     }
     if (payload.merchant_role_id !== undefined && payload.merchant_role_id !== null && !isPositiveNumber(payload.merchant_role_id)) {
       addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
-    }
-    if (payload.first_name !== undefined && !isNonEmptyString(payload.first_name)) {
-      addError(errors, 'first_name', 'first_name must be a non-empty string');
-    }
-    if (payload.last_name !== undefined && !isNonEmptyString(payload.last_name)) {
-      addError(errors, 'last_name', 'last_name must be a non-empty string');
     }
     if (payload.email !== undefined && !isValidEmail(payload.email)) {
       addError(errors, 'email', 'email must be a valid email');

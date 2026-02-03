@@ -105,8 +105,6 @@ async function login(req, res, next) {
       return res.json({
         id: admin.id,
         email: admin.email,
-        first_name: admin.first_name,
-        last_name: admin.last_name,
         platform_role_id: admin.platform_role_id || null,
         access_token: accessToken,
         refresh_token: refreshToken
@@ -139,8 +137,6 @@ async function login(req, res, next) {
     return res.json({
       id: user.id,
       email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
       merchant_id: user.merchant_id,
       branch_id: user.branch_id,
       merchant_role_id: user.merchant_role_id || null,
@@ -185,14 +181,8 @@ async function logout(req, res) {
 
 async function register(req, res, next) {
   try {
-    const { first_name, last_name, email, password, platform_role_id, status } = req.body || {};
+    const { email, password, platform_role_id, status } = req.body || {};
     const errors = {};
-    if (!isNonEmptyString(first_name)) {
-      addError(errors, 'first_name', 'First name is required');
-    }
-    if (!isNonEmptyString(last_name)) {
-      addError(errors, 'last_name', 'Last name is required');
-    }
     if (!isValidEmail(email)) {
       addError(errors, 'email', 'Email is required and must be valid');
     }
@@ -217,8 +207,6 @@ async function register(req, res, next) {
     }
 
     const result = await platformAdminsRepo.create({
-      first_name,
-      last_name,
       email,
       password: await hashPassword(password),
       platform_role_id: platform_role_id || null,
@@ -245,8 +233,6 @@ async function me(req, res, next) {
     return res.json({
       id: admin.id,
       email: admin.email,
-      first_name: admin.first_name,
-      last_name: admin.last_name,
       platform_role_id: admin.platform_role_id || null,
       avatar_url: admin.avatar_url || null,
       permissions

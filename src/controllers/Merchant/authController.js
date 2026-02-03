@@ -86,8 +86,6 @@ async function login(req, res, next) {
     return res.json({
       id: user.id,
       email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
       merchant_id: user.merchant_id,
       branch_id: user.branch_id,
       merchant_role_id: user.merchant_role_id || null,
@@ -147,8 +145,6 @@ async function me(req, res) {
     return res.json({
       id: user.id,
       email: user.email,
-      first_name: user.first_name,
-      last_name: user.last_name,
       merchant_id: user.merchant_id,
       branch_id: user.branch_id,
       merchant_role_id: user.merchant_role_id || null,
@@ -169,14 +165,12 @@ async function register(req, res, next) {
     country,
     city,
     address,
-    admin_first_name,
-    admin_last_name,
     admin_email,
     admin_phone,
     admin_password
   } = req.body || {};
 
-  if (!name || !email || !admin_first_name || !admin_last_name || !admin_email || !admin_password) {
+  if (!name || !email || !admin_email || !admin_password) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
@@ -270,8 +264,6 @@ async function register(req, res, next) {
         merchant_id: merchantId,
         branch_id: branchId,
         merchant_role_id: roleId,
-        first_name: admin_first_name,
-        last_name: admin_last_name,
         email: admin_email,
         phone: admin_phone || null,
         password: await hashPassword(admin_password),
@@ -281,8 +273,6 @@ async function register(req, res, next) {
         'merchant_id',
         'branch_id',
         'merchant_role_id',
-        'first_name',
-        'last_name',
         'email',
         'phone',
         'password',
