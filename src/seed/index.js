@@ -29,6 +29,9 @@ async function seedMerchantPermissions(actions) {
     { key: 'branch-role', group: 'Merchant' },
     { key: 'branch-role-permission', group: 'Merchant' },
     { key: 'product', group: 'Catalog' },
+    { key: 'category', group: 'Catalog' },
+    { key: 'product-image', group: 'Catalog' },
+    { key: 'product-category', group: 'Catalog' },
     { key: 'order', group: 'Orders' }
   ];
 
@@ -59,7 +62,11 @@ async function run() {
     { key: 'user', group: 'Merchant' },
     { key: 'permission', group: 'Merchant' },
     { key: 'branch-role', group: 'Merchant' },
-    { key: 'branch-role-permission', group: 'Merchant' }
+    { key: 'branch-role-permission', group: 'Merchant' },
+    { key: 'product', group: 'Catalog' },
+    { key: 'category', group: 'Catalog' },
+    { key: 'product-image', group: 'Catalog' },
+    { key: 'product-category', group: 'Catalog' }
   ];
   const actions = [
     { key: 'create', label: 'Create' },
