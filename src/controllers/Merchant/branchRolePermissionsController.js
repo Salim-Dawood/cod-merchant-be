@@ -3,7 +3,10 @@ const { isPositiveNumber, addError, hasErrors } = require('../../utils/validatio
 
 async function list(req, res, next) {
   try {
-    const rows = await service.list();
+    const merchant = req.merchant || null;
+    const rows = merchant && service.listForMerchant
+      ? await service.listForMerchant(merchant)
+      : await service.list();
     res.json(rows);
   } catch (err) {
     next(err);

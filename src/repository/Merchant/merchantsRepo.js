@@ -1,6 +1,7 @@
 const createRepo = require('../base');
+const pool = require('../../db');
 
-module.exports = createRepo('merchants', [
+const repo = createRepo('merchants', [
   'merchant_code',
   'name',
   'legal_name',
@@ -11,3 +12,14 @@ module.exports = createRepo('merchants', [
   'address',
   'status'
 ]);
+
+repo.findAllForMerchant = async (merchant) => {
+  const merchantId = merchant?.merchant_id;
+  if (!merchantId) {
+    return repo.findAll();
+  }
+  const [rows] = await pool.query('SELECT * FROM merchants WHERE id = ?', [merchantId]);
+  return rows;
+};
+
+module.exports = repo;

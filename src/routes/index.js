@@ -3,6 +3,7 @@ const platformRoutes = require('./Platform');
 const merchantRoutes = require('./Merchant');
 const platformAuth = require('../middleware/platformAuth');
 const requirePlatformPermission = require('../middleware/platformPermissions');
+const allowPlatformOrMerchant = require('../middleware/platformOrMerchant');
 const platformAdminsRoutes = require('./Platform/platformAdmins');
 const platformRolesRoutes = require('./Platform/platformRoles');
 const platformPermissionsRoutes = require('./Platform/platformPermissions');
@@ -135,8 +136,7 @@ router.use(
 );
 router.use(
   '/products',
-  platformAuth,
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-product',
     POST: 'create-product',
     PUT: 'update-product',
@@ -146,8 +146,7 @@ router.use(
 );
 router.use(
   '/categories',
-  platformAuth,
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-category',
     POST: 'create-category',
     PUT: 'update-category',
@@ -157,8 +156,7 @@ router.use(
 );
 router.use(
   '/product-images',
-  platformAuth,
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-product-image',
     POST: 'create-product-image',
     PUT: 'update-product-image',
@@ -168,8 +166,7 @@ router.use(
 );
 router.use(
   '/product-categories',
-  platformAuth,
-  requirePlatformPermission({
+  allowPlatformOrMerchant({
     GET: 'view-product-category',
     POST: 'create-product-category',
     PUT: 'update-product-category',
