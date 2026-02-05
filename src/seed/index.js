@@ -230,6 +230,189 @@ async function run() {
       status: 'active'
     }
   );
+
+  const [permissionRows] = await pool.query('SELECT id, key_name FROM permissions');
+  const permissionMap = new Map(permissionRows.map((row) => [row.key_name, row.id]));
+  const allPermissionIds = permissionRows.map((row) => row.id);
+
+  const assignRolePermissions = async (roleId, keys) => {
+    const ids = keys === 'all'
+      ? allPermissionIds
+      : keys.map((key) => permissionMap.get(key)).filter(Boolean);
+    for (const permId of ids) {
+      await getOrCreate(
+        'branch_role_permissions',
+        'branch_role_id = ? AND permission_id = ?',
+        [roleId, permId],
+        { branch_role_id: roleId, permission_id: permId }
+      );
+    }
+  };
+
+  const createBranchRolesAndUsers = async ({ merchantId, branchId, branchCode, label }) => {
+    const roleTemplates = [
+      { name: 'Manager', description: 'Branch manager', permissions: 'all' },
+      { name: 'Support', description: 'Support staff', permissions: ['view-merchant', 'view-branch', 'view-user', 'view-product', 'view-category', 'view-order'] },
+      { name: 'Cashier', description: 'Front desk cashier', permissions: ['view-order', 'create-order', 'update-order'] },
+      { name: 'Inventory', description: 'Inventory specialist', permissions: ['view-product', 'create-product', 'update-product', 'view-category', 'create-category', 'update-category'] }
+    ];
+
+    for (const template of roleTemplates) {
+      const roleId = await getOrCreate(
+        'branch_roles',
+        'branch_id = ? AND name = ?',
+        [branchId, template.name],
+        { branch_id: branchId, name: template.name, description: template.description, is_system: true }
+      );
+      await assignRolePermissions(roleId, template.permissions);
+
+      const emailLocal = `${template.name.toLowerCase()}-${branchCode}`.replace(/\s+/g, '');
+      await getOrCreate(
+        'users',
+        'email = ?',
+        [`${emailLocal}@cod-merchant.example`],
+        {
+          merchant_id: merchantId,
+          branch_id: branchId,
+          merchant_role_id: roleId,
+          email: `${emailLocal}@cod-merchant.example`,
+          phone: `+96170000${String(branchId).padStart(2, '0')}`,
+          password: await hashPassword('change-me'),
+          status: 'active'
+        }
+      );
+    }
+  };
+
+  const categorySeeds = [
+    { name: 'Sandwiches', slug: 'sandwiches' },
+    { name: 'Meals', slug: 'meals' },
+    { name: 'Breads', slug: 'breads' },
+    { name: 'Pastries', slug: 'pastries' },
+    { name: 'Beverages', slug: 'beverages' }
+  ];
+
+  const categoryIds = {};
+  for (const category of categorySeeds) {
+    const id = await getOrCreate(
+      'categories',
+      'slug = ?',
+      [category.slug],
+      { ...category, is_active: 1 }
+    );
+    categoryIds[category.slug] = id;
+  }
+
+  const merchants = [
+    {
+      code: 'MAT001',
+      name: 'Malak Al Tawouk',
+      legal_name: 'Malak Al Tawouk SARL',
+      email: 'info@malakaltawouk.example',
+      phone: '+9611700001',
+      country: 'LB',
+      city: 'Beirut',
+      address: 'Hamra Street',
+      branches: [
+        { code: 'MAT-HQ', name: 'Malak HQ', type: 'hq', city: 'Beirut', is_main: 1 },
+        { code: 'MAT-HAM', name: 'Hamra Branch', type: 'store', city: 'Beirut', is_main: 0 },
+        { code: 'MAT-ACH', name: 'Achrafieh Branch', type: 'store', city: 'Beirut', is_main: 0 }
+      ],
+      products: [
+        { name: 'Classic Tawouk', slug: 'classic-tawouk', category: 'sandwiches' },
+        { name: 'Spicy Tawouk', slug: 'spicy-tawouk', category: 'sandwiches' },
+        { name: 'Tawouk Meal', slug: 'tawouk-meal', category: 'meals' }
+      ]
+    },
+    {
+      code: 'WB001',
+      name: 'Wooden Bakery',
+      legal_name: 'Wooden Bakery SAL',
+      email: 'hello@woodenbakery.example',
+      phone: '+9611700002',
+      country: 'LB',
+      city: 'Beirut',
+      address: 'Verdun Street',
+      branches: [
+        { code: 'WB-HQ', name: 'Wooden HQ', type: 'hq', city: 'Beirut', is_main: 1 },
+        { code: 'WB-DB', name: 'Downtown Branch', type: 'store', city: 'Beirut', is_main: 0 },
+        { code: 'WB-JN', name: 'Jounieh Branch', type: 'store', city: 'Jounieh', is_main: 0 }
+      ],
+      products: [
+        { name: 'Baguette', slug: 'baguette', category: 'breads' },
+        { name: 'Chocolate Croissant', slug: 'chocolate-croissant', category: 'pastries' },
+        { name: 'Iced Latte', slug: 'iced-latte', category: 'beverages' }
+      ]
+    }
+  ];
+
+  for (const merchant of merchants) {
+    const merchantId = await getOrCreate(
+      'merchants',
+      'merchant_code = ?',
+      [merchant.code],
+      {
+        merchant_code: merchant.code,
+        name: merchant.name,
+        legal_name: merchant.legal_name,
+        email: merchant.email,
+        phone: merchant.phone,
+        country: merchant.country,
+        city: merchant.city,
+        address: merchant.address,
+        status: 'active'
+      }
+    );
+
+    for (const branch of merchant.branches) {
+      const branchId = await getOrCreate(
+        'branches',
+        'code = ?',
+        [branch.code],
+        {
+          merchant_id: merchantId,
+          parent_branch_id: null,
+          name: branch.name,
+          code: branch.code,
+          type: branch.type,
+          is_main: branch.is_main,
+          status: 'active'
+        }
+      );
+      await createBranchRolesAndUsers({
+        merchantId,
+        branchId,
+        branchCode: branch.code.toLowerCase(),
+        label: branch.name
+      });
+
+      for (const product of merchant.products) {
+        const productId = await getOrCreate(
+          'products',
+          'slug = ? AND branch_id = ?',
+          [`${product.slug}-${branch.code.toLowerCase()}`, branchId],
+          {
+            branch_id: branchId,
+            name: product.name,
+            slug: `${product.slug}-${branch.code.toLowerCase()}`,
+            description: `${product.name} from ${merchant.name}`,
+            status: 'active',
+            is_active: 1
+          }
+        );
+
+        const categoryId = categoryIds[product.category];
+        if (productId && categoryId) {
+          await getOrCreate(
+            'product_categories',
+            'product_id = ? AND category_id = ?',
+            [productId, categoryId],
+            { product_id: productId, category_id: categoryId, is_active: 1 }
+          );
+        }
+      }
+    }
+  }
 }
 
 run()
