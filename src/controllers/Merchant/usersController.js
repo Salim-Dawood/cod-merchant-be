@@ -1,5 +1,5 @@
 const service = require('../../services/Merchant/usersService');
-const { uploadImageBuffer, isCloudinaryEnabled } = require('../../utils/cloudinary');
+const { uploadImage } = require('../../utils/storage');
 const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
@@ -177,12 +177,15 @@ async function uploadPhoto(req, res, next) {
       return res.status(400).json({ error: 'Photo is required' });
     }
     let url = '';
-    if (isCloudinaryEnabled && req.file.buffer) {
-      const resultUpload = await uploadImageBuffer(req.file.buffer, {
-        public_id: `merchant-user-${id}-${Date.now()}`
+    if (req.file.buffer) {
+      url = await uploadImage({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        prefix: `merchant-user-${id}`
       });
-      url = resultUpload?.secure_url || resultUpload?.url || '';
-    } else if (req.file.filename) {
+    }
+    if (!url && req.file.filename) {
       const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
       url = `${baseUrl}/uploads/${req.file.filename}`;
     }

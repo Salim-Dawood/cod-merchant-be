@@ -1,5 +1,5 @@
 const service = require('../../services/Merchant/productImagesService');
-const { uploadImageBuffer, isCloudinaryEnabled } = require('../../utils/cloudinary');
+const { uploadImage } = require('../../utils/storage');
 const { isPositiveNumber, isNonEmptyString, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
@@ -138,12 +138,15 @@ async function uploadPhoto(req, res, next) {
     const sortOrder = req.body?.sort_order ? Number(req.body.sort_order) : null;
     const isActive = req.body?.is_active ? String(req.body.is_active) === 'true' : true;
     let url = '';
-    if (isCloudinaryEnabled && req.file.buffer) {
-      const resultUpload = await uploadImageBuffer(req.file.buffer, {
-        public_id: `product-${productId}-${Date.now()}`
+    if (req.file.buffer) {
+      url = await uploadImage({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        prefix: `product-${productId}`
       });
-      url = resultUpload?.secure_url || resultUpload?.url || '';
-    } else if (req.file.filename) {
+    }
+    if (!url && req.file.filename) {
       const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
       url = `${baseUrl}/uploads/${req.file.filename}`;
     }
