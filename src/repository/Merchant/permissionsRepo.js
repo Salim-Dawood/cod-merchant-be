@@ -23,4 +23,18 @@ repo.findAllForMerchant = async (merchant) => {
   return rows;
 };
 
+repo.findAllByRoleId = async (roleId) => {
+  if (!roleId) {
+    return [];
+  }
+  const [rows] = await pool.query(
+    `SELECT p.*
+     FROM permissions p
+     JOIN branch_role_permissions brp ON brp.permission_id = p.id
+     WHERE brp.branch_role_id = ?`,
+    [roleId]
+  );
+  return rows;
+};
+
 module.exports = repo;

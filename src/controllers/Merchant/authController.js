@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 const pool = require('../../db');
 const usersRepo = require('../../repository/Merchant/usersRepo');
+const branchRolesRepo = require('../../repository/Merchant/branchRolesRepo');
+const permissionsRepo = require('../../repository/Merchant/permissionsRepo');
 const { buildInsert } = require('../../repository/common');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 
@@ -142,12 +144,18 @@ async function me(req, res) {
     if (!user) {
       return res.status(404).json({ error: 'Not found' });
     }
+    const role = user.merchant_role_id ? await branchRolesRepo.findById(user.merchant_role_id) : null;
+    const permissions = user.merchant_role_id
+      ? await permissionsRepo.findAllByRoleId(user.merchant_role_id)
+      : [];
     return res.json({
       id: user.id,
       email: user.email,
       merchant_id: user.merchant_id,
       branch_id: user.branch_id,
       merchant_role_id: user.merchant_role_id || null,
+      role_name: role?.name || null,
+      permissions: permissions.map((perm) => perm.key_name),
       avatar_url: user.avatar_url || null
     });
   } catch (err) {

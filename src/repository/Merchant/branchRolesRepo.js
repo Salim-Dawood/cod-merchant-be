@@ -17,4 +17,9 @@ repo.findAllForMerchant = async (merchant) => {
   return rows;
 };
 
+repo.findById = async (id) => {
+  const [rows] = await pool.query('SELECT * FROM branch_roles WHERE id = ? LIMIT 1', [id]);
+  return rows[0] || null;
+};
+
 module.exports = repo;

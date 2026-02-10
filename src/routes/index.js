@@ -21,6 +21,18 @@ const productCategoriesRoutes = require('./Merchant/productCategories');
 
 const router = express.Router();
 
+function allowPlatformOrMerchantRead(permissionMap) {
+  return [
+    allowPlatformOrMerchant(permissionMap),
+    (req, res, next) => {
+      if (req.merchant && req.method !== 'GET' && req.method !== 'HEAD') {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+      return next();
+    }
+  ];
+}
+
 router.use('/platform', platformRoutes);
 router.use('/merchant', merchantRoutes);
 
@@ -70,8 +82,7 @@ router.use(
 );
 router.use(
   '/merchants',
-  platformAuth,
-  requirePlatformPermission({
+  ...allowPlatformOrMerchantRead({
     GET: 'view-merchant',
     POST: 'create-merchant',
     PUT: 'update-merchant',
@@ -81,8 +92,7 @@ router.use(
 );
 router.use(
   '/branches',
-  platformAuth,
-  requirePlatformPermission({
+  ...allowPlatformOrMerchantRead({
     GET: 'view-branch',
     POST: 'create-branch',
     PUT: 'update-branch',
