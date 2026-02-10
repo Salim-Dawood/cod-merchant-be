@@ -1,8 +1,10 @@
 const createCrudRouter = require('../crudRouter');
 const platformAdminsController = require('../../controllers/Platform/platformAdminsController');
-const { uploadMemory } = require('../../utils/upload');
+const { upload, uploadMemory } = require('../../utils/upload');
+const { isCloudinaryEnabled } = require('../../utils/cloudinary');
 
 const router = createCrudRouter(platformAdminsController);
-router.post('/:id/photo', uploadMemory.single('photo'), platformAdminsController.uploadPhoto);
+const uploader = isCloudinaryEnabled ? uploadMemory : upload;
+router.post('/:id/photo', uploader.single('photo'), platformAdminsController.uploadPhoto);
 
 module.exports = router;

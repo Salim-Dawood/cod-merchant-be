@@ -7,6 +7,10 @@ const {
   CLOUDINARY_API_SECRET
 } = process.env;
 
+const isCloudinaryEnabled = Boolean(
+  CLOUDINARY_URL || (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET)
+);
+
 if (CLOUDINARY_URL) {
   cloudinary.config({ secure: true });
 } else if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
@@ -39,5 +43,6 @@ function uploadImageBuffer(buffer, options = {}) {
 }
 
 module.exports = {
-  uploadImageBuffer
+  uploadImageBuffer,
+  isCloudinaryEnabled
 };

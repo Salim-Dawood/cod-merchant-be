@@ -1,5 +1,5 @@
 const service = require('../../services/Platform/platformAdminsService');
-const { uploadImageBuffer } = require('../../utils/cloudinary');
+const { uploadImageBuffer, isCloudinaryEnabled } = require('../../utils/cloudinary');
 const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
@@ -145,10 +145,16 @@ async function uploadPhoto(req, res, next) {
     if (!req.file) {
       return res.status(400).json({ error: 'Photo is required' });
     }
-    const resultUpload = await uploadImageBuffer(req.file.buffer, {
-      public_id: `platform-admin-${id}-${Date.now()}`
-    });
-    const url = resultUpload?.secure_url || resultUpload?.url;
+    let url = '';
+    if (isCloudinaryEnabled && req.file.buffer) {
+      const resultUpload = await uploadImageBuffer(req.file.buffer, {
+        public_id: `platform-admin-${id}-${Date.now()}`
+      });
+      url = resultUpload?.secure_url || resultUpload?.url || '';
+    } else if (req.file.filename) {
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      url = `${baseUrl}/uploads/${req.file.filename}`;
+    }
     if (!url) {
       return res.status(400).json({ error: 'Upload failed' });
     }

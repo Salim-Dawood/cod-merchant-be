@@ -1,5 +1,5 @@
 const service = require('../../services/Merchant/productImagesService');
-const { uploadImageBuffer } = require('../../utils/cloudinary');
+const { uploadImageBuffer, isCloudinaryEnabled } = require('../../utils/cloudinary');
 const { isPositiveNumber, isNonEmptyString, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
@@ -137,10 +137,16 @@ async function uploadPhoto(req, res, next) {
     }
     const sortOrder = req.body?.sort_order ? Number(req.body.sort_order) : null;
     const isActive = req.body?.is_active ? String(req.body.is_active) === 'true' : true;
-    const resultUpload = await uploadImageBuffer(req.file.buffer, {
-      public_id: `product-${productId}-${Date.now()}`
-    });
-    const url = resultUpload?.secure_url || resultUpload?.url;
+    let url = '';
+    if (isCloudinaryEnabled && req.file.buffer) {
+      const resultUpload = await uploadImageBuffer(req.file.buffer, {
+        public_id: `product-${productId}-${Date.now()}`
+      });
+      url = resultUpload?.secure_url || resultUpload?.url || '';
+    } else if (req.file.filename) {
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      url = `${baseUrl}/uploads/${req.file.filename}`;
+    }
     if (!url) {
       return res.status(400).json({ error: 'Upload failed' });
     }
