@@ -24,22 +24,24 @@ function allowPlatformOrMerchant(permissionMap) {
       const platformToken = getPlatformToken(req);
       if (platformToken) {
         const payload = jwt.verify(platformToken, process.env.JWT_ACCESS_SECRET);
-        req.user = payload;
-        if (process.env.PLATFORM_ADMIN_FULL_ACCESS === 'true' && req.user?.type === 'platform') {
+        if (payload?.type === 'platform') {
+          req.user = payload;
+          if (process.env.PLATFORM_ADMIN_FULL_ACCESS === 'true' && req.user?.type === 'platform') {
+            return next();
+          }
+          const method = req.method === 'HEAD' ? 'GET' : req.method;
+          const required = permissionMap[method];
+          if (!required) {
+            return next();
+          }
+          if (!req.permissions) {
+            req.permissions = await platformAdminsRepo.getPermissions(req.user.sub);
+          }
+          if (!req.permissions.includes(required)) {
+            return res.status(403).json({ error: 'Forbidden' });
+          }
           return next();
         }
-        const method = req.method === 'HEAD' ? 'GET' : req.method;
-        const required = permissionMap[method];
-        if (!required) {
-          return next();
-        }
-        if (!req.permissions) {
-          req.permissions = await platformAdminsRepo.getPermissions(req.user.sub);
-        }
-        if (!req.permissions.includes(required)) {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-        return next();
       }
 
       const merchantToken = getMerchantToken(req);
