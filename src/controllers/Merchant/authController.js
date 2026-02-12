@@ -310,6 +310,16 @@ async function registerClient(req, res, next) {
     return res.status(400).json({ error: 'Email and password required' });
   }
 
+  const clientPermissionKeys = [
+    'view-merchant',
+    'view-branch',
+    'view-user',
+    'view-product',
+    'view-category',
+    'view-product-image',
+    'view-product-category'
+  ];
+
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
@@ -360,6 +370,17 @@ async function registerClient(req, res, next) {
       );
       const [roleResult] = await connection.query(roleInsert.sql, roleInsert.params);
       roleId = roleResult.insertId;
+    }
+
+    const [permissionRows] = await connection.query(
+      'SELECT id, key_name FROM permissions WHERE key_name IN (?)',
+      [clientPermissionKeys]
+    );
+    for (const perm of permissionRows) {
+      await connection.query(
+        'INSERT IGNORE INTO branch_role_permissions (branch_role_id, permission_id) VALUES (?, ?)',
+        [roleId, perm.id]
+      );
     }
 
     const userInsert = buildInsert(
