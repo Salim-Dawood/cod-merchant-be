@@ -247,7 +247,7 @@ async function register(req, res, next) {
         is_main: true,
         status: 'active'
       },
-      ['merchant_id', 'parent_branch_id', 'name', 'logo_url', 'code', 'type', 'is_main', 'status']
+      ['merchant_id', 'parent_branch_id', 'name', 'code', 'type', 'is_main', 'status']
     );
     const [branchResult] = await connection.query(
       branchInsert.sql,

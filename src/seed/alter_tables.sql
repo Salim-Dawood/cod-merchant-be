@@ -4,9 +4,6 @@ ALTER TABLE platform_admins
 ALTER TABLE users
   ADD COLUMN merchant_role_id INT NULL AFTER branch_id;
 
-ALTER TABLE branches
-  ADD COLUMN logo_url TEXT NULL AFTER name;
-
 CREATE TABLE IF NOT EXISTS platform_admin_photos (
   id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
   platform_admin_id INT NOT NULL,
