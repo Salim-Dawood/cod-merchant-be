@@ -1,4 +1,6 @@
 const service = require('../../services/Merchant/branchesService');
+const { uploadImage } = require('../../utils/storage');
+const { isNonEmptyString, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -34,6 +36,14 @@ async function create(req, res, next) {
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
     }
+    const { flag_url } = payload;
+    const errors = {};
+    if (flag_url !== undefined && flag_url !== null && flag_url !== '' && !isNonEmptyString(flag_url)) {
+      addError(errors, 'flag_url', 'flag_url must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
+    }
     const result = await service.create(payload);
     if (!result.insertId) {
       return res.status(400).json({ error: 'Insert failed' });
@@ -47,12 +57,19 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const payload = req.body || {};
     if (Object.keys(payload).length === 0) {
       return res.status(400).json({ error: 'Empty payload' });
+    }
+    const errors = {};
+    if (payload.flag_url !== undefined && payload.flag_url !== null && payload.flag_url !== '' && !isNonEmptyString(payload.flag_url)) {
+      addError(errors, 'flag_url', 'flag_url must be a non-empty string');
+    }
+    if (hasErrors(errors)) {
+      return res.status(400).json({ errors });
     }
     const result = await service.update(id, payload);
     if (!result.affectedRows) {
@@ -67,7 +84,7 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const result = await service.remove(id);
@@ -80,10 +97,46 @@ async function remove(req, res, next) {
   }
 }
 
+async function uploadFlag(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!isPositiveNumber(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Photo is required' });
+    }
+    let url = '';
+    if (req.file.buffer) {
+      url = await uploadImage({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        prefix: `branch-flag-${id}`
+      });
+    }
+    if (!url && req.file.filename) {
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      url = `${baseUrl}/uploads/${req.file.filename}`;
+    }
+    if (!url) {
+      return res.status(400).json({ error: 'Upload failed' });
+    }
+    const result = await service.update(id, { flag_url: url });
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.json({ flag_url: url });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   list,
   getById,
   create,
   update,
-  remove
+  remove,
+  uploadFlag
 };
