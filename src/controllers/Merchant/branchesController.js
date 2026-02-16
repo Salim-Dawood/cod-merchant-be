@@ -1,4 +1,6 @@
 const service = require('../../services/Merchant/branchesService');
+const { uploadImage } = require('../../utils/storage');
+const { isPositiveNumber } = require('../../utils/validation');
 
 async function list(req, res, next) {
   try {
@@ -15,7 +17,7 @@ async function list(req, res, next) {
 async function getById(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const row = await service.getById(id);
@@ -47,7 +49,7 @@ async function create(req, res, next) {
 async function update(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const payload = req.body || {};
@@ -67,7 +69,7 @@ async function update(req, res, next) {
 async function remove(req, res, next) {
   try {
     const id = Number(req.params.id);
-    if (!id) {
+    if (!isPositiveNumber(id)) {
       return res.status(400).json({ error: 'Invalid id' });
     }
     const result = await service.remove(id);
@@ -80,10 +82,46 @@ async function remove(req, res, next) {
   }
 }
 
+async function uploadLogo(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+    if (!isPositiveNumber(id)) {
+      return res.status(400).json({ error: 'Invalid id' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Logo image is required' });
+    }
+    let url = '';
+    if (req.file.buffer) {
+      url = await uploadImage({
+        buffer: req.file.buffer,
+        filename: req.file.originalname,
+        mimetype: req.file.mimetype,
+        prefix: `branch-logo-${id}`
+      });
+    }
+    if (!url && req.file.filename) {
+      const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get('host')}`;
+      url = `${baseUrl}/uploads/${req.file.filename}`;
+    }
+    if (!url) {
+      return res.status(400).json({ error: 'Upload failed' });
+    }
+    const result = await service.update(id, { logo_url: url });
+    if (!result.affectedRows) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    return res.json({ logo_url: url });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   list,
   getById,
   create,
   update,
-  remove
+  remove,
+  uploadLogo
 };

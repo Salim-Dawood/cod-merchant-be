@@ -5,6 +5,7 @@ const repo = createRepo('branches', [
   'merchant_id',
   'parent_branch_id',
   'name',
+  'logo_url',
   'code',
   'type',
   'is_main',
