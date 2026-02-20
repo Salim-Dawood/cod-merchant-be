@@ -8,8 +8,6 @@ const { hashPassword, isHashed, verifyPassword } = require('../../utils/password
 
 const ACCESS_TTL = process.env.JWT_ACCESS_TTL || '15m';
 const REFRESH_TTL = process.env.JWT_REFRESH_TTL || '7d';
-const CLIENT_ROLE_NAME = process.env.CLIENT_ROLE_NAME || 'Client';
-const CLIENT_BRANCH_ID = process.env.CLIENT_BRANCH_ID ? Number(process.env.CLIENT_BRANCH_ID) : null;
 
 function getBearerToken(req) {
   const authHeader = req.headers.authorization || '';
@@ -305,118 +303,10 @@ async function register(req, res, next) {
 }
 
 async function registerClient(req, res, next) {
-  const { email, password, phone } = req.body || {};
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password required' });
-  }
-
-  const clientPermissionKeys = [
-    'view-merchant',
-    'view-branch',
-    'view-user',
-    'view-product',
-    'view-category',
-    'view-product-image',
-    'view-product-category'
-  ];
-
-  const connection = await pool.getConnection();
-  try {
-    await connection.beginTransaction();
-
-    const [userRows] = await connection.query(
-      'SELECT id FROM users WHERE email = ? LIMIT 1',
-      [email]
-    );
-    if (userRows.length) {
-      await connection.rollback();
-      return res.status(409).json({ error: 'Email already exists' });
-    }
-
-    let branchRow;
-    if (CLIENT_BRANCH_ID) {
-      const [branchRows] = await connection.query(
-        'SELECT id, merchant_id FROM branches WHERE id = ? LIMIT 1',
-        [CLIENT_BRANCH_ID]
-      );
-      branchRow = branchRows[0];
-    }
-    if (!branchRow) {
-      const [branchRows] = await connection.query(
-        'SELECT id, merchant_id FROM branches ORDER BY id LIMIT 1'
-      );
-      branchRow = branchRows[0];
-    }
-    if (!branchRow) {
-      await connection.rollback();
-      return res.status(400).json({ error: 'No branch available for client registration' });
-    }
-
-    const [roleRows] = await connection.query(
-      'SELECT id FROM branch_roles WHERE branch_id = ? AND LOWER(name) = LOWER(?) LIMIT 1',
-      [branchRow.id, CLIENT_ROLE_NAME]
-    );
-    let roleId = roleRows[0]?.id;
-    if (!roleId) {
-      const roleInsert = buildInsert(
-        'branch_roles',
-        {
-          branch_id: branchRow.id,
-          name: CLIENT_ROLE_NAME,
-          description: 'Client read-only access',
-          is_system: true
-        },
-        ['branch_id', 'name', 'description', 'is_system']
-      );
-      const [roleResult] = await connection.query(roleInsert.sql, roleInsert.params);
-      roleId = roleResult.insertId;
-    }
-
-    const [permissionRows] = await connection.query(
-      'SELECT id, key_name FROM permissions WHERE key_name IN (?)',
-      [clientPermissionKeys]
-    );
-    for (const perm of permissionRows) {
-      await connection.query(
-        'INSERT IGNORE INTO branch_role_permissions (branch_role_id, permission_id) VALUES (?, ?)',
-        [roleId, perm.id]
-      );
-    }
-
-    const userInsert = buildInsert(
-      'users',
-      {
-        merchant_id: branchRow.merchant_id,
-        branch_id: branchRow.id,
-        merchant_role_id: roleId,
-        email,
-        phone: phone || null,
-        password: await hashPassword(password),
-        status: 'active'
-      },
-      [
-        'merchant_id',
-        'branch_id',
-        'merchant_role_id',
-        'email',
-        'phone',
-        'password',
-        'status'
-      ]
-    );
-    const [result] = await connection.query(userInsert.sql, userInsert.params);
-
-    await connection.commit();
-    return res.status(201).json({
-      id: result.insertId,
-      email
-    });
-  } catch (err) {
-    await connection.rollback();
-    return next(err);
-  } finally {
-    connection.release();
-  }
+  return res.status(410).json({
+    error: 'Moved',
+    message: 'Client registration moved to /api/client/auth/register'
+  });
 }
 
 module.exports = {

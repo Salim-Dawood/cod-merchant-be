@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const platformAdminsRepo = require('../repository/Platform/platformAdminsRepo');
-const branchRolesRepo = require('../repository/Merchant/branchRolesRepo');
 
 function getPlatformToken(req) {
   const authHeader = req.headers.authorization || '';
@@ -53,20 +52,6 @@ function allowPlatformOrMerchant(permissionMap) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       req.merchant = payload;
-      const roleNameTarget = (process.env.CLIENT_ROLE_NAME || 'Client').toLowerCase();
-      if (payload.merchant_role_id) {
-        const role = await branchRolesRepo.findById(payload.merchant_role_id);
-        if (role?.name && String(role.name).toLowerCase() === roleNameTarget) {
-          req.merchant.is_client = true;
-          req.merchant.role_name = role.name;
-        }
-      }
-      if (req.merchant?.is_client) {
-        const method = req.method === 'HEAD' ? 'GET' : req.method;
-        if (method !== 'GET') {
-          return res.status(403).json({ error: 'Forbidden' });
-        }
-      }
       return next();
     } catch (err) {
       return res.status(401).json({ error: 'Unauthorized' });

@@ -4,7 +4,16 @@ const pool = require('../db');
 const { hashPassword, isHashed } = require('../utils/password');
 
 async function hashTablePasswords(table) {
-  const [rows] = await pool.query(`SELECT id, password FROM ${table}`);
+  let rows = [];
+  try {
+    const [resultRows] = await pool.query(`SELECT id, password FROM ${table}`);
+    rows = resultRows;
+  } catch (err) {
+    if (err && err.code === 'ER_NO_SUCH_TABLE') {
+      return { table, total: 0, updated: 0, skipped: 0 };
+    }
+    throw err;
+  }
   let updated = 0;
   let skipped = 0;
 
@@ -25,6 +34,7 @@ async function run() {
   const results = [];
   results.push(await hashTablePasswords('users'));
   results.push(await hashTablePasswords('platform_admins'));
+  results.push(await hashTablePasswords('platform_clients'));
 
   for (const result of results) {
     console.log(

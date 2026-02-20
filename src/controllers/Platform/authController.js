@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
 const platformAdminsRepo = require('../../repository/Platform/platformAdminsRepo');
-const usersRepo = require('../../repository/Merchant/usersRepo');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 const { isNonEmptyString, isValidEmail, addError, hasErrors } = require('../../utils/validation');
 
@@ -31,29 +30,6 @@ function signAccessToken(admin) {
 function signRefreshToken(admin) {
   return jwt.sign(
     { sub: admin.id },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: REFRESH_TTL }
-  );
-}
-
-function signMerchantAccessToken(user) {
-  return jwt.sign(
-    {
-      type: 'merchant',
-      sub: user.id,
-      email: user.email,
-      merchant_id: user.merchant_id,
-      branch_id: user.branch_id,
-      merchant_role_id: user.merchant_role_id || null
-    },
-    process.env.JWT_ACCESS_SECRET,
-    { expiresIn: ACCESS_TTL }
-  );
-}
-
-function signMerchantRefreshToken(user) {
-  return jwt.sign(
-    { type: 'merchant', sub: user.id },
     process.env.JWT_REFRESH_SECRET,
     { expiresIn: REFRESH_TTL }
   );
@@ -111,38 +87,7 @@ async function login(req, res, next) {
       });
     }
 
-    const user = await usersRepo.findByEmail(email);
-    if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    if (!isHashed(user.password)) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const passwordValid = await verifyPassword(password, user.password);
-
-    if (!passwordValid) {
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const accessToken = signMerchantAccessToken(user);
-    const refreshToken = signMerchantRefreshToken(user);
-
-    res.cookie('merchant_access_token', accessToken, { ...cookieOptions(), maxAge: 1000 * 60 * 15 });
-    res.cookie('merchant_refresh_token', refreshToken, { ...cookieOptions(), maxAge: 1000 * 60 * 60 * 24 * 7 });
-
-    await usersRepo.update(user.id, { last_login_at: new Date() });
-
-    return res.json({
-      id: user.id,
-      email: user.email,
-      merchant_id: user.merchant_id,
-      branch_id: user.branch_id,
-      merchant_role_id: user.merchant_role_id || null,
-      access_token: accessToken,
-      refresh_token: refreshToken
-    });
+    return res.status(401).json({ error: 'Invalid credentials' });
   } catch (err) {
     return next(err);
   }

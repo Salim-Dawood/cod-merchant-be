@@ -5,9 +5,6 @@ function createService(repo) {
       if (!merchant) {
         return repo.findAll();
       }
-      if (merchant.is_client) {
-        return repo.findAll();
-      }
       if (typeof repo.findAllForMerchant === 'function') {
         return repo.findAllForMerchant(merchant);
       }

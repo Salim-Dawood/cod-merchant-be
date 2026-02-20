@@ -18,6 +18,7 @@ const productsRoutes = require('./Merchant/products');
 const categoriesRoutes = require('./Merchant/categories');
 const productImagesRoutes = require('./Merchant/productImages');
 const productCategoriesRoutes = require('./Merchant/productCategories');
+const clientRoutes = require('./Client');
 
 const router = express.Router();
 
@@ -35,6 +36,7 @@ function allowPlatformOrMerchantRead(permissionMap) {
 
 router.use('/platform', platformRoutes);
 router.use('/merchant', merchantRoutes);
+router.use('/client', clientRoutes);
 
 router.use(
   '/platform-admins',
@@ -156,7 +158,7 @@ router.use(
 );
 router.use(
   '/categories',
-  allowPlatformOrMerchant({
+  ...allowPlatformOrMerchantRead({
     GET: 'view-category',
     POST: 'create-category',
     PUT: 'update-category',
