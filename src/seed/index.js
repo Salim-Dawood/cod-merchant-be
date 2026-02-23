@@ -55,6 +55,8 @@ async function run() {
   const permissionResources = [
     { key: 'platform-admin', group: 'Platform' },
     { key: 'platform-role', group: 'Platform' },
+    { key: 'platform-client', group: 'Platform' },
+    { key: 'platform-client-role', group: 'Platform' },
     { key: 'platform-permission', group: 'Platform' },
     { key: 'platform-role-permission', group: 'Platform' },
     { key: 'merchant', group: 'Merchant' },
