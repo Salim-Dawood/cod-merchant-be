@@ -17,6 +17,14 @@ function getMerchantToken(req) {
   return req.cookies?.merchant_access_token || null;
 }
 
+function getClientToken(req) {
+  const authHeader = req.headers.authorization || '';
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.slice(7);
+  }
+  return req.cookies?.client_access_token || null;
+}
+
 function allowPlatformOrMerchant(permissionMap) {
   return async (req, res, next) => {
     try {
@@ -44,10 +52,24 @@ function allowPlatformOrMerchant(permissionMap) {
       }
 
       const merchantToken = getMerchantToken(req);
-      if (!merchantToken) {
+      const clientToken = getClientToken(req);
+      const actorToken = merchantToken || clientToken;
+      if (!actorToken) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
-      const payload = jwt.verify(merchantToken, process.env.JWT_ACCESS_SECRET);
+      const payload = jwt.verify(actorToken, process.env.JWT_ACCESS_SECRET);
+      if (payload.type === 'client') {
+        const method = req.method === 'HEAD' ? 'GET' : req.method;
+        if (method !== 'GET') {
+          return res.status(403).json({ error: 'Forbidden' });
+        }
+        req.merchant = {
+          ...payload,
+          is_client: true,
+          role_name: 'client'
+        };
+        return next();
+      }
       if (payload.type !== 'merchant') {
         return res.status(401).json({ error: 'Unauthorized' });
       }
