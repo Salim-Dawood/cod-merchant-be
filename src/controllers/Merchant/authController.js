@@ -5,6 +5,7 @@ const branchRolesRepo = require('../../repository/Merchant/branchRolesRepo');
 const permissionsRepo = require('../../repository/Merchant/permissionsRepo');
 const { buildInsert } = require('../../repository/common');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
+const passwordResetService = require('../../services/passwordResetService');
 
 const ACCESS_TTL = process.env.JWT_ACCESS_TTL || '15m';
 const REFRESH_TTL = process.env.JWT_REFRESH_TTL || '7d';
@@ -309,11 +310,42 @@ async function registerClient(req, res, next) {
   });
 }
 
+async function forgotPassword(req, res, next) {
+  try {
+    const { email } = req.body || {};
+    const result = await passwordResetService.requestReset('merchant', email);
+    return res.json(result);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function resetPassword(req, res, next) {
+  try {
+    const { token, password } = req.body || {};
+    if (!token || !password) {
+      return res.status(400).json({ error: 'token and password are required' });
+    }
+    if (String(password).trim().length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+    const result = await passwordResetService.resetPassword('merchant', String(token), String(password));
+    if (!result.ok) {
+      return res.status(400).json({ error: 'Invalid or expired reset link' });
+    }
+    return res.json({ ok: true, message: 'Password reset successful' });
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   register,
   registerClient,
   login,
   refresh,
   logout,
-  me
+  me,
+  forgotPassword,
+  resetPassword
 };

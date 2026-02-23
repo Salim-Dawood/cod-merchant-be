@@ -82,3 +82,18 @@ CREATE TABLE IF NOT EXISTS client_orders (
     FOREIGN KEY (product_id) REFERENCES products(id)
     ON DELETE RESTRICT
 );
+
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  actor_type ENUM('platform','merchant','client') NOT NULL,
+  actor_id INT NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  token_hash CHAR(64) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  used_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_password_reset_actor (actor_type, actor_id),
+  INDEX idx_password_reset_email (actor_type, email),
+  INDEX idx_password_reset_token_hash (token_hash),
+  INDEX idx_password_reset_expires (expires_at)
+);
