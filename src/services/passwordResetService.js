@@ -2,7 +2,6 @@ const crypto = require('crypto');
 const passwordResetTokensRepo = require('../repository/passwordResetTokensRepo');
 const platformAdminsRepo = require('../repository/Platform/platformAdminsRepo');
 const usersRepo = require('../repository/Merchant/usersRepo');
-const platformClientsRepo = require('../repository/Client/platformClientsRepo');
 const { hashPassword } = require('../utils/password');
 const { sendEmail } = require('../utils/mailer');
 
@@ -16,10 +15,6 @@ const actorConfig = {
   merchant: {
     repo: usersRepo,
     label: 'Merchant User'
-  },
-  client: {
-    repo: platformClientsRepo,
-    label: 'Marketplace Client'
   }
 };
 

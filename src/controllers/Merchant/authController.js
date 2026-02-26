@@ -303,13 +303,6 @@ async function register(req, res, next) {
   }
 }
 
-async function registerClient(req, res, next) {
-  return res.status(410).json({
-    error: 'Moved',
-    message: 'Client registration moved to /api/client/auth/register'
-  });
-}
-
 async function forgotPassword(req, res, next) {
   try {
     const { email } = req.body || {};
@@ -341,7 +334,6 @@ async function resetPassword(req, res, next) {
 
 module.exports = {
   register,
-  registerClient,
   login,
   refresh,
   logout,

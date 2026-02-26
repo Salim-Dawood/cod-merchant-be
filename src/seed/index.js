@@ -55,8 +55,6 @@ async function run() {
   const permissionResources = [
     { key: 'platform-admin', group: 'Platform' },
     { key: 'platform-role', group: 'Platform' },
-    { key: 'platform-client', group: 'Platform' },
-    { key: 'platform-client-role', group: 'Platform' },
     { key: 'platform-permission', group: 'Platform' },
     { key: 'platform-role-permission', group: 'Platform' },
     { key: 'merchant', group: 'Merchant' },
@@ -107,13 +105,6 @@ async function run() {
     ['Support'],
     { name: 'Support', description: 'Support staff', is_system: true }
   );
-  const buyerClientRoleId = await getOrCreate(
-    'platform_client_roles',
-    'name = ?',
-    ['Buyer'],
-    { name: 'Buyer', is_active: 1 }
-  );
-
   const [platformPermissions] = await pool.query('SELECT id FROM platform_permissions');
   for (const perm of platformPermissions) {
     await getOrCreate(
@@ -156,22 +147,6 @@ async function run() {
       status: 'active'
     }
   );
-  await getOrCreate(
-    'platform_clients',
-    'email = ?',
-    ['client@cod-merchant.local'],
-    {
-      platform_client_role_id: buyerClientRoleId,
-      first_name: 'Demo',
-      last_name: 'Client',
-      email: 'client@cod-merchant.local',
-      phone: '+10000000009',
-      password: await hashPassword('change-me'),
-      status: 'active',
-      is_active: 1
-    }
-  );
-
   const merchantId = await getOrCreate(
     'merchants',
     'merchant_code = ?',

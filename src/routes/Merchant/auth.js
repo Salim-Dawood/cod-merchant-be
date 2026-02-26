@@ -5,7 +5,6 @@ const merchantAuth = require('../../middleware/merchantAuth');
 const router = express.Router();
 
 router.post('/register', authController.register);
-router.post('/register-client', authController.registerClient);
 router.post('/login', authController.login);
 router.post('/forgot-password', authController.forgotPassword);
 router.post('/reset-password', authController.resetPassword);

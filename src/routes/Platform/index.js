@@ -6,8 +6,6 @@ const platformAdminsRoutes = require('./platformAdmins');
 const platformRolesRoutes = require('./platformRoles');
 const platformPermissionsRoutes = require('./platformPermissions');
 const platformRolePermissionsRoutes = require('./platformRolePermissions');
-const platformClientsRoutes = require('./platformClients');
-const platformClientRolesRoutes = require('./platformClientRoles');
 
 const router = express.Router();
 
@@ -53,25 +51,4 @@ router.use(
   }),
   platformRolePermissionsRoutes
 );
-router.use(
-  '/platform-clients',
-  requirePlatformPermission({
-    GET: 'view-platform-client',
-    POST: 'create-platform-client',
-    PUT: 'update-platform-client',
-    DELETE: 'delete-platform-client'
-  }),
-  platformClientsRoutes
-);
-router.use(
-  '/platform-client-roles',
-  requirePlatformPermission({
-    GET: 'view-platform-client-role',
-    POST: 'create-platform-client-role',
-    PUT: 'update-platform-client-role',
-    DELETE: 'delete-platform-client-role'
-  }),
-  platformClientRolesRoutes
-);
-
 module.exports = router;

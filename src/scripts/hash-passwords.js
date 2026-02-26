@@ -34,7 +34,6 @@ async function run() {
   const results = [];
   results.push(await hashTablePasswords('users'));
   results.push(await hashTablePasswords('platform_admins'));
-  results.push(await hashTablePasswords('platform_clients'));
 
   for (const result of results) {
     console.log(

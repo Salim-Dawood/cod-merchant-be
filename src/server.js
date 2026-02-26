@@ -10,7 +10,6 @@ const app = express();
 app.set('trust proxy', 1);
 
 const apiRoutes = require('./routes');
-const clientRoutes = require('./routes/Client');
 
 function requestLogger(req, res, next) {
   const startedAt = Date.now();
@@ -48,7 +47,6 @@ app.use(cookieParser());
 app.use(express.json({ limit: '1mb' }));
 app.use('/uploads', express.static(uploadDir));
 app.use('/api/v1', apiRoutes);
-app.use('/api/client', clientRoutes);
 
 app.get('/', (req, res) => {
   res.status(200).send('Backend is running ✅');

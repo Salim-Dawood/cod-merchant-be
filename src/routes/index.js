@@ -8,8 +8,6 @@ const platformAdminsRoutes = require('./Platform/platformAdmins');
 const platformRolesRoutes = require('./Platform/platformRoles');
 const platformPermissionsRoutes = require('./Platform/platformPermissions');
 const platformRolePermissionsRoutes = require('./Platform/platformRolePermissions');
-const platformClientsRoutes = require('./Platform/platformClients');
-const platformClientRolesRoutes = require('./Platform/platformClientRoles');
 const merchantsRoutes = require('./Merchant/merchants');
 const branchesRoutes = require('./Merchant/branches');
 const usersRoutes = require('./Merchant/users');
@@ -20,7 +18,6 @@ const productsRoutes = require('./Merchant/products');
 const categoriesRoutes = require('./Merchant/categories');
 const productImagesRoutes = require('./Merchant/productImages');
 const productCategoriesRoutes = require('./Merchant/productCategories');
-const clientRoutes = require('./Client');
 
 const router = express.Router();
 
@@ -38,7 +35,6 @@ function allowPlatformOrMerchantRead(permissionMap) {
 
 router.use('/platform', platformRoutes);
 router.use('/merchant', merchantRoutes);
-router.use('/client', clientRoutes);
 
 router.use(
   '/platform-admins',
@@ -83,28 +79,6 @@ router.use(
     DELETE: 'delete-platform-role-permission'
   }),
   platformRolePermissionsRoutes
-);
-router.use(
-  '/platform-clients',
-  platformAuth,
-  requirePlatformPermission({
-    GET: 'view-platform-client',
-    POST: 'create-platform-client',
-    PUT: 'update-platform-client',
-    DELETE: 'delete-platform-client'
-  }),
-  platformClientsRoutes
-);
-router.use(
-  '/platform-client-roles',
-  platformAuth,
-  requirePlatformPermission({
-    GET: 'view-platform-client-role',
-    POST: 'create-platform-client-role',
-    PUT: 'update-platform-client-role',
-    DELETE: 'delete-platform-client-role'
-  }),
-  platformClientRolesRoutes
 );
 router.use(
   '/merchants',
