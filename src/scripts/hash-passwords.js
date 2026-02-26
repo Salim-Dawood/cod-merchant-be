@@ -3,13 +3,13 @@ require('dotenv').config();
 const pool = require('../db');
 const { hashPassword, isHashed } = require('../utils/password');
 
-async function hashTablePasswords(table) {
+async function hashTablePasswords(table, passwordColumn = 'password') {
   let rows = [];
   try {
-    const [resultRows] = await pool.query(`SELECT id, password FROM ${table}`);
+    const [resultRows] = await pool.query(`SELECT id, ${passwordColumn} AS password FROM ${table}`);
     rows = resultRows;
   } catch (err) {
-    if (err && err.code === 'ER_NO_SUCH_TABLE') {
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR')) {
       return { table, total: 0, updated: 0, skipped: 0 };
     }
     throw err;
@@ -23,7 +23,7 @@ async function hashTablePasswords(table) {
       continue;
     }
     const nextHash = await hashPassword(row.password);
-    await pool.query(`UPDATE ${table} SET password = ? WHERE id = ?`, [nextHash, row.id]);
+    await pool.query(`UPDATE ${table} SET ${passwordColumn} = ? WHERE id = ?`, [nextHash, row.id]);
     updated += 1;
   }
 
@@ -34,6 +34,7 @@ async function run() {
   const results = [];
   results.push(await hashTablePasswords('users'));
   results.push(await hashTablePasswords('platform_admins'));
+  results.push(await hashTablePasswords('buyer_users', 'password_hash'));
 
   for (const result of results) {
     console.log(

@@ -51,6 +51,35 @@ async function seedMerchantPermissions(actions) {
   }
 }
 
+async function seedBuyerPermissions() {
+  const buyerPermissions = [
+    { name: 'place_orders', description: 'Place orders', module: 'orders' },
+    { name: 'approve_orders', description: 'Approve orders', module: 'orders' },
+    { name: 'view_orders', description: 'View orders', module: 'orders' },
+    { name: 'view_invoices', description: 'View invoices', module: 'invoices' },
+    { name: 'manage_addresses', description: 'Manage company addresses', module: 'buyers' },
+    { name: 'manage_payment_methods', description: 'Manage payment methods', module: 'buyers' },
+    { name: 'manage_team', description: 'Manage buyer team members', module: 'buyers' },
+    { name: 'view_reports', description: 'View buyer reports', module: 'reports' }
+  ];
+
+  try {
+    for (const perm of buyerPermissions) {
+      await getOrCreate(
+        'buyer_permissions',
+        'name = ?',
+        [perm.name],
+        perm
+      );
+    }
+  } catch (err) {
+    if (err && err.code === 'ER_NO_SUCH_TABLE') {
+      return;
+    }
+    throw err;
+  }
+}
+
 async function run() {
   const permissionResources = [
     { key: 'platform-admin', group: 'Platform' },
@@ -91,6 +120,7 @@ async function run() {
   }
 
   await seedMerchantPermissions(actions);
+  await seedBuyerPermissions();
 
   const superAdminRoleId = await getOrCreate(
     'platform_roles',

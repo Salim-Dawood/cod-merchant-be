@@ -32,4 +32,4 @@ DROP TABLE IF EXISTS platform_client_roles;
 
 -- Tighten password reset actor enum after client rows are removed.
 ALTER TABLE password_reset_tokens
-  MODIFY COLUMN actor_type ENUM('platform','merchant') NOT NULL;
+  MODIFY COLUMN actor_type ENUM('platform','merchant','buyer') NOT NULL;

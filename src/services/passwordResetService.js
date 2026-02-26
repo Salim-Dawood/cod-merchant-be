@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const passwordResetTokensRepo = require('../repository/passwordResetTokensRepo');
 const platformAdminsRepo = require('../repository/Platform/platformAdminsRepo');
 const usersRepo = require('../repository/Merchant/usersRepo');
+const buyerUsersRepo = require('../repository/Buyer/buyerUsersRepo');
 const { hashPassword } = require('../utils/password');
 const { sendEmail } = require('../utils/mailer');
 
@@ -14,7 +15,13 @@ const actorConfig = {
   },
   merchant: {
     repo: usersRepo,
-    label: 'Merchant User'
+    label: 'Merchant User',
+    passwordField: 'password'
+  },
+  buyer: {
+    repo: buyerUsersRepo,
+    label: 'Buyer User',
+    passwordField: 'password_hash'
   }
 };
 
@@ -131,7 +138,7 @@ async function resetPassword(actorType, token, nextPassword) {
   }
 
   const passwordHash = await hashPassword(nextPassword);
-  await config.repo.update(tokenRow.actor_id, { password: passwordHash });
+  await config.repo.update(tokenRow.actor_id, { [config.passwordField || 'password']: passwordHash });
   await passwordResetTokensRepo.markUsed(tokenRow.id);
   return { ok: true };
 }

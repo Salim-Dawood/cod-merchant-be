@@ -1,6 +1,7 @@
 const express = require('express');
 const platformRoutes = require('./Platform');
 const merchantRoutes = require('./Merchant');
+const buyerRoutes = require('./Buyer');
 const platformAuth = require('../middleware/platformAuth');
 const requirePlatformPermission = require('../middleware/platformPermissions');
 const allowPlatformOrMerchant = require('../middleware/platformOrMerchant');
@@ -35,6 +36,7 @@ function allowPlatformOrMerchantRead(permissionMap) {
 
 router.use('/platform', platformRoutes);
 router.use('/merchant', merchantRoutes);
+router.use('/buyer', buyerRoutes);
 
 router.use(
   '/platform-admins',

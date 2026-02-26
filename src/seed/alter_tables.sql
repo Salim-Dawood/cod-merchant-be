@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS user_photos (
 
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  actor_type ENUM('platform','merchant') NOT NULL,
+  actor_type ENUM('platform','merchant','buyer') NOT NULL,
   actor_id INT NOT NULL,
   email VARCHAR(255) NOT NULL,
   token_hash CHAR(64) NOT NULL,
