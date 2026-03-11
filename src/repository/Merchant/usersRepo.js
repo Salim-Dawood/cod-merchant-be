@@ -65,11 +65,11 @@ repo.findByEmail = async (email) => {
 };
 
 repo.findAllForMerchant = async (merchant) => {
-  const branchId = merchant?.branch_id;
-  if (!branchId) {
+  const merchantId = merchant?.merchant_id;
+  if (!merchantId) {
     return repo.findAll();
   }
-  const [rows] = await pool.query(`${baseQuery} WHERE u.branch_id = ?`, [branchId]);
+  const [rows] = await pool.query(`${baseQuery} WHERE u.merchant_id = ?`, [merchantId]);
   return rows;
 };
 

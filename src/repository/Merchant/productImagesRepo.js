@@ -9,16 +9,17 @@ const repo = createRepo('product_images', [
 ]);
 
 repo.findAllForMerchant = async (merchant) => {
-  const branchId = merchant?.branch_id;
-  if (!branchId) {
+  const merchantId = merchant?.merchant_id;
+  if (!merchantId) {
     return repo.findAll();
   }
   const [rows] = await pool.query(
     `SELECT pi.*
      FROM product_images pi
      JOIN products p ON p.id = pi.product_id
-     WHERE p.branch_id = ?`,
-    [branchId]
+     JOIN branches b ON b.id = p.branch_id
+     WHERE b.merchant_id = ?`,
+    [merchantId]
   );
   return rows;
 };

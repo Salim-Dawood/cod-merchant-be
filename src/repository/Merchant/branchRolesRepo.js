@@ -9,11 +9,17 @@ const repo = createRepo('branch_roles', [
 ]);
 
 repo.findAllForMerchant = async (merchant) => {
-  const branchId = merchant?.branch_id;
-  if (!branchId) {
+  const merchantId = merchant?.merchant_id;
+  if (!merchantId) {
     return repo.findAll();
   }
-  const [rows] = await pool.query('SELECT * FROM branch_roles WHERE branch_id = ?', [branchId]);
+  const [rows] = await pool.query(
+    `SELECT br.*
+     FROM branch_roles br
+     JOIN branches b ON b.id = br.branch_id
+     WHERE b.merchant_id = ?`,
+    [merchantId]
+  );
   return rows;
 };
 
