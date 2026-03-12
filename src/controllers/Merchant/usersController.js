@@ -50,8 +50,8 @@ async function create(req, res, next) {
     if (!isPositiveNumber(merchant_id)) {
       addError(errors, 'merchant_id', 'merchant_id is required and must be a positive number');
     }
-    if (!isPositiveNumber(branch_id)) {
-      addError(errors, 'branch_id', 'branch_id is required and must be a positive number');
+    if (branch_id !== undefined && branch_id !== null && branch_id !== '' && !isPositiveNumber(branch_id)) {
+      addError(errors, 'branch_id', 'branch_id must be a positive number');
     }
     if (merchant_role_id !== undefined && merchant_role_id !== null && !isPositiveNumber(merchant_role_id)) {
       addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
@@ -115,7 +115,7 @@ async function update(req, res, next) {
     if (payload.merchant_id !== undefined && !isPositiveNumber(payload.merchant_id)) {
       addError(errors, 'merchant_id', 'merchant_id must be a positive number');
     }
-    if (payload.branch_id !== undefined && !isPositiveNumber(payload.branch_id)) {
+    if (payload.branch_id !== undefined && payload.branch_id !== null && payload.branch_id !== '' && !isPositiveNumber(payload.branch_id)) {
       addError(errors, 'branch_id', 'branch_id must be a positive number');
     }
     if (payload.merchant_role_id !== undefined && payload.merchant_role_id !== null && !isPositiveNumber(payload.merchant_role_id)) {

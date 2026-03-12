@@ -69,9 +69,6 @@ async function register(req, res, next) {
   const buyerEmail = normalizeEmail(company_email || email);
   const userEmail = normalizeEmail(email);
 
-  if (!isNonEmptyString(company_name)) {
-    addError(errors, 'company_name', 'company_name is required');
-  }
   if (!isValidEmail(buyerEmail)) {
     addError(errors, 'company_email', 'company_email (or email) must be valid');
   }
@@ -111,7 +108,7 @@ async function register(req, res, next) {
        (company_name, business_registration_number, tax_id, email, phone, status)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
-        company_name,
+        company_name || [first_name, last_name].filter(Boolean).join(' ').trim() || buyerEmail,
         business_registration_number || null,
         tax_id || null,
         buyerEmail,
