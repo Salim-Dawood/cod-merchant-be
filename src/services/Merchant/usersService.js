@@ -1,12 +1,34 @@
 const repo = require('../../repository/Merchant/usersRepo');
 const photosRepo = require('../../repository/Merchant/userPhotosRepo');
+const pool = require('../../db');
 const { hashPassword, isHashed } = require('../../utils/password');
+
+async function resolveDefaultBranchId(merchantId) {
+  if (!merchantId) {
+    return null;
+  }
+  const [rows] = await pool.query(
+    `SELECT id
+     FROM branches
+     WHERE merchant_id = ?
+     ORDER BY is_main DESC, id ASC
+     LIMIT 1`,
+    [merchantId]
+  );
+  return rows[0]?.id || null;
+}
 
 module.exports = {
   list: () => repo.findAll(),
   getById: (id) => repo.findById(id),
   create: async (data) => {
     const payload = { ...data };
+    if (payload.branch_id === '' || payload.branch_id === undefined) {
+      delete payload.branch_id;
+    }
+    if (!payload.branch_id && payload.merchant_id) {
+      payload.branch_id = await resolveDefaultBranchId(payload.merchant_id);
+    }
     if (payload.password && !isHashed(payload.password)) {
       payload.password = await hashPassword(payload.password);
     }
