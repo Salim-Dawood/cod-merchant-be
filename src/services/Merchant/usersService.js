@@ -20,6 +20,7 @@ async function resolveDefaultBranchId(merchantId) {
 
 module.exports = {
   list: () => repo.findAll(),
+  listForMerchant: (merchant) => repo.findAllForMerchant(merchant),
   getById: (id) => repo.findById(id),
   create: async (data) => {
     const payload = { ...data };

@@ -1,4 +1,5 @@
 const service = require('../../services/Merchant/usersService');
+const { findEmailConflicts, normalizeEmail } = require('../../services/identityService');
 const { uploadImage } = require('../../utils/storage');
 const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
 
@@ -73,6 +74,12 @@ async function create(req, res, next) {
     if (avatar_url !== undefined && avatar_url !== null && avatar_url !== '' && !isNonEmptyString(avatar_url)) {
       addError(errors, 'avatar_url', 'avatar_url must be a non-empty string');
     }
+    if (isValidEmail(email)) {
+      const conflicts = await findEmailConflicts(email);
+      if (conflicts.length > 0) {
+        addError(errors, 'email', 'email already exists in another account');
+      }
+    }
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });
     }
@@ -137,6 +144,20 @@ async function update(req, res, next) {
     }
     if (payload.avatar_url !== undefined && payload.avatar_url !== null && payload.avatar_url !== '' && !isNonEmptyString(payload.avatar_url)) {
       addError(errors, 'avatar_url', 'avatar_url must be a non-empty string');
+    }
+    if (payload.email !== undefined && isValidEmail(payload.email)) {
+      const existing = await service.getById(id);
+      if (!existing) {
+        return res.status(404).json({ error: 'Not found' });
+      }
+      const nextEmail = normalizeEmail(payload.email);
+      const currentEmail = normalizeEmail(existing.email);
+      if (nextEmail !== currentEmail) {
+        const conflicts = await findEmailConflicts(nextEmail);
+        if (conflicts.length > 0) {
+          addError(errors, 'email', 'email already exists in another account');
+        }
+      }
     }
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });

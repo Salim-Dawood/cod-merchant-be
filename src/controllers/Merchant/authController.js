@@ -3,6 +3,7 @@ const pool = require('../../db');
 const usersRepo = require('../../repository/Merchant/usersRepo');
 const branchRolesRepo = require('../../repository/Merchant/branchRolesRepo');
 const permissionsRepo = require('../../repository/Merchant/permissionsRepo');
+const { findEmailConflicts, normalizeEmail } = require('../../services/identityService');
 const { buildInsert } = require('../../repository/common');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 const passwordResetService = require('../../services/passwordResetService');
@@ -196,11 +197,14 @@ async function register(req, res, next) {
       return res.status(409).json({ error: 'Merchant email already exists' });
     }
 
-    const [userRows] = await connection.query(
-      'SELECT id FROM users WHERE email = ? LIMIT 1',
-      [admin_email]
-    );
-    if (userRows.length) {
+    const merchantEmailConflicts = await findEmailConflicts(normalizeEmail(email));
+    if (merchantEmailConflicts.length) {
+      await connection.rollback();
+      return res.status(409).json({ error: 'Merchant email already exists' });
+    }
+
+    const adminEmailConflicts = await findEmailConflicts(normalizeEmail(admin_email));
+    if (adminEmailConflicts.length) {
       await connection.rollback();
       return res.status(409).json({ error: 'Admin email already exists' });
     }

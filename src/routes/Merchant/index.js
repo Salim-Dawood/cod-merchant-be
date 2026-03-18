@@ -7,6 +7,10 @@ const usersRoutes = require('./users');
 const permissionsRoutes = require('./permissions');
 const branchRolesRoutes = require('./branchRoles');
 const branchRolePermissionsRoutes = require('./branchRolePermissions');
+const productsRoutes = require('./products');
+const categoriesRoutes = require('./categories');
+const productImagesRoutes = require('./productImages');
+const productCategoriesRoutes = require('./productCategories');
 
 const router = express.Router();
 
@@ -70,6 +74,46 @@ router.use(
     DELETE: 'delete-branch-role-permission'
   }),
   branchRolePermissionsRoutes
+);
+router.use(
+  '/products',
+  allowPlatformOrMerchant({
+    GET: 'view-product',
+    POST: 'create-product',
+    PUT: 'update-product',
+    DELETE: 'delete-product'
+  }),
+  productsRoutes
+);
+router.use(
+  '/categories',
+  allowPlatformOrMerchant({
+    GET: 'view-category',
+    POST: 'create-category',
+    PUT: 'update-category',
+    DELETE: 'delete-category'
+  }),
+  categoriesRoutes
+);
+router.use(
+  '/product-images',
+  allowPlatformOrMerchant({
+    GET: 'view-product-image',
+    POST: 'create-product-image',
+    PUT: 'update-product-image',
+    DELETE: 'delete-product-image'
+  }),
+  productImagesRoutes
+);
+router.use(
+  '/product-categories',
+  allowPlatformOrMerchant({
+    GET: 'view-product-category',
+    POST: 'create-product-category',
+    PUT: 'update-product-category',
+    DELETE: 'delete-product-category'
+  }),
+  productCategoriesRoutes
 );
 
 module.exports = router;

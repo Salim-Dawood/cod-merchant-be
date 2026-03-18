@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../../db');
 const buyersRepo = require('../../repository/Buyer/buyersRepo');
 const buyerUsersRepo = require('../../repository/Buyer/buyerUsersRepo');
+const { findEmailConflicts } = require('../../services/identityService');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 const { isNonEmptyString, isValidEmail, addError, hasErrors } = require('../../utils/validation');
 const passwordResetService = require('../../services/passwordResetService');
@@ -90,12 +91,12 @@ async function register(req, res, next) {
     return res.status(400).json({ errors });
   }
 
-  const existingBuyer = await buyersRepo.findByEmail(buyerEmail);
-  if (existingBuyer) {
+  const existingBuyer = await findEmailConflicts(buyerEmail);
+  if (existingBuyer.length > 0) {
     return res.status(409).json({ error: 'Company email already exists' });
   }
-  const existingUser = await buyerUsersRepo.findByEmail(userEmail);
-  if (existingUser) {
+  const existingUser = await findEmailConflicts(userEmail);
+  if (existingUser.length > 0) {
     return res.status(409).json({ error: 'User email already exists' });
   }
 

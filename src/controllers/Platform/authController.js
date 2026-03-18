@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const platformAdminsRepo = require('../../repository/Platform/platformAdminsRepo');
+const { findEmailConflicts } = require('../../services/identityService');
 const { hashPassword, isHashed, verifyPassword } = require('../../utils/password');
 const { isNonEmptyString, isValidEmail, addError, hasErrors } = require('../../utils/validation');
 const passwordResetService = require('../../services/passwordResetService');
@@ -147,8 +148,8 @@ async function register(req, res, next) {
       return res.status(400).json({ errors });
     }
 
-    const existing = await platformAdminsRepo.findByEmail(email);
-    if (existing) {
+    const existing = await findEmailConflicts(email);
+    if (existing.length > 0) {
       return res.status(409).json({ error: 'Email already exists' });
     }
 
