@@ -13,8 +13,9 @@ const repo = createRepo('users', [
 ]);
 
 const baseQuery = `
-  SELECT u.*, up.url AS avatar_url
+  SELECT u.*, up.url AS avatar_url, br.name AS role_name
   FROM users u
+  LEFT JOIN branch_roles br ON br.id = u.merchant_role_id
   LEFT JOIN user_photos up
     ON up.id = (
       SELECT id

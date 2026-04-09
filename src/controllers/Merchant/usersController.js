@@ -1,7 +1,71 @@
 const service = require('../../services/Merchant/usersService');
 const { findEmailConflicts, normalizeEmail } = require('../../services/identityService');
 const { uploadImage } = require('../../utils/storage');
+const pool = require('../../db');
 const { isNonEmptyString, isValidEmail, isPositiveNumber, addError, hasErrors } = require('../../utils/validation');
+
+const SUPPORTED_USER_ROLES = ['admin', 'merchant', 'buyer'];
+const DEFAULT_ROLE_PERMISSIONS = {
+  admin: 'all',
+  merchant: ['view-merchant', 'view-branch', 'view-user', 'view-product', 'create-product', 'update-product', 'view-category', 'create-category', 'update-category', 'view-order', 'create-order', 'update-order'],
+  buyer: ['view-merchant', 'view-branch', 'view-product', 'view-category', 'view-order']
+};
+
+async function getPermissionIds(connection) {
+  const [rows] = await connection.query('SELECT id, key_name FROM permissions');
+  return rows;
+}
+
+async function ensureRolePermissions(connection, roleId, roleKey) {
+  const permissions = await getPermissionIds(connection);
+  const map = new Map(permissions.map((perm) => [perm.key_name, perm.id]));
+  const mode = DEFAULT_ROLE_PERMISSIONS[roleKey] || [];
+  const ids = mode === 'all'
+    ? permissions.map((perm) => perm.id)
+    : mode.map((key) => map.get(key)).filter(Boolean);
+  for (const permissionId of ids) {
+    await connection.query(
+      `INSERT IGNORE INTO branch_role_permissions (branch_role_id, permission_id)
+       VALUES (?, ?)`,
+      [roleId, permissionId]
+    );
+  }
+}
+
+async function resolveRoleIdByName(branchId, roleName) {
+  if (!isPositiveNumber(branchId) || !SUPPORTED_USER_ROLES.includes(roleName)) {
+    return null;
+  }
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const normalizedName = roleName.charAt(0).toUpperCase() + roleName.slice(1);
+    const [existing] = await connection.query(
+      `SELECT id
+       FROM branch_roles
+       WHERE branch_id = ? AND LOWER(name) = ?
+       LIMIT 1`,
+      [branchId, roleName]
+    );
+    let roleId = existing[0]?.id || null;
+    if (!roleId) {
+      const [result] = await connection.query(
+        `INSERT INTO branch_roles (branch_id, name, description, is_system)
+         VALUES (?, ?, ?, 1)`,
+        [branchId, normalizedName, `${normalizedName} role`]
+      );
+      roleId = result.insertId;
+    }
+    await ensureRolePermissions(connection, roleId, roleName);
+    await connection.commit();
+    return roleId;
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+}
 
 async function list(req, res, next) {
   try {
@@ -41,6 +105,7 @@ async function create(req, res, next) {
       merchant_id,
       branch_id,
       merchant_role_id,
+      role,
       email,
       phone,
       password,
@@ -56,6 +121,15 @@ async function create(req, res, next) {
     }
     if (merchant_role_id !== undefined && merchant_role_id !== null && !isPositiveNumber(merchant_role_id)) {
       addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
+    }
+    if (role !== undefined && role !== null && role !== '') {
+      const normalizedRole = String(role).trim().toLowerCase();
+      if (!SUPPORTED_USER_ROLES.includes(normalizedRole)) {
+        addError(errors, 'role', `role must be one of: ${SUPPORTED_USER_ROLES.join(', ')}`);
+      }
+      if (!isPositiveNumber(branch_id)) {
+        addError(errors, 'branch_id', 'branch_id is required when role is provided');
+      }
     }
     if (!isValidEmail(email)) {
       addError(errors, 'email', 'email is required and must be valid');
@@ -83,7 +157,16 @@ async function create(req, res, next) {
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });
     }
-    const result = await service.create(payload);
+    const createPayload = { ...payload };
+    if (role !== undefined) {
+      const normalizedRole = String(role || '').trim().toLowerCase();
+      if (SUPPORTED_USER_ROLES.includes(normalizedRole)) {
+        const resolvedRoleId = await resolveRoleIdByName(Number(branch_id), normalizedRole);
+        createPayload.merchant_role_id = resolvedRoleId;
+      }
+      delete createPayload.role;
+    }
+    const result = await service.create(createPayload);
     if (!result.insertId) {
       return res.status(400).json({ error: 'Insert failed' });
     }
@@ -107,6 +190,7 @@ async function update(req, res, next) {
       'merchant_id',
       'branch_id',
       'merchant_role_id',
+      'role',
       'email',
       'phone',
       'password',
@@ -127,6 +211,16 @@ async function update(req, res, next) {
     }
     if (payload.merchant_role_id !== undefined && payload.merchant_role_id !== null && !isPositiveNumber(payload.merchant_role_id)) {
       addError(errors, 'merchant_role_id', 'merchant_role_id must be a positive number');
+    }
+    if (payload.role !== undefined && payload.role !== null && payload.role !== '') {
+      const normalizedRole = String(payload.role).trim().toLowerCase();
+      if (!SUPPORTED_USER_ROLES.includes(normalizedRole)) {
+        addError(errors, 'role', `role must be one of: ${SUPPORTED_USER_ROLES.join(', ')}`);
+      }
+      const branchToUse = payload.branch_id || (await service.getById(id))?.branch_id;
+      if (!isPositiveNumber(branchToUse)) {
+        addError(errors, 'branch_id', 'branch_id is required when role is provided');
+      }
     }
     if (payload.email !== undefined && !isValidEmail(payload.email)) {
       addError(errors, 'email', 'email must be a valid email');
@@ -162,7 +256,21 @@ async function update(req, res, next) {
     if (hasErrors(errors)) {
       return res.status(400).json({ errors });
     }
-    const result = await service.update(id, payload);
+    const updatePayload = { ...payload };
+    if (payload.role !== undefined) {
+      const normalizedRole = String(payload.role || '').trim().toLowerCase();
+      if (SUPPORTED_USER_ROLES.includes(normalizedRole)) {
+        const existingUser = await service.getById(id);
+        if (!existingUser) {
+          return res.status(404).json({ error: 'Not found' });
+        }
+        const branchToUse = Number(updatePayload.branch_id || existingUser.branch_id);
+        const resolvedRoleId = await resolveRoleIdByName(branchToUse, normalizedRole);
+        updatePayload.merchant_role_id = resolvedRoleId;
+      }
+      delete updatePayload.role;
+    }
+    const result = await service.update(id, updatePayload);
     if (!result.affectedRows) {
       return res.status(404).json({ error: 'Not found' });
     }

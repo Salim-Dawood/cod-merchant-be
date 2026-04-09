@@ -209,20 +209,6 @@ async function run() {
     }
   );
 
-  const createProductPermId = await getOrCreate(
-    'permissions',
-    'key_name = ?',
-    ['create-product'],
-    { key_name: 'create-product', description: 'Create product', group_name: 'Catalog' }
-  );
-
-  const viewOrdersPermId = await getOrCreate(
-    'permissions',
-    'key_name = ?',
-    ['view-order'],
-    { key_name: 'view-order', description: 'View order', group_name: 'Orders' }
-  );
-
   const managerRoleId = await getOrCreate(
     'branch_roles',
     'branch_id = ? AND name = ?',
@@ -230,19 +216,7 @@ async function run() {
     { branch_id: branchId, name: 'Manager', description: 'Branch manager', is_system: true }
   );
 
-  await getOrCreate(
-    'branch_role_permissions',
-    'branch_role_id = ? AND permission_id = ?',
-    [managerRoleId, createProductPermId],
-    { branch_role_id: managerRoleId, permission_id: createProductPermId }
-  );
-
-  await getOrCreate(
-    'branch_role_permissions',
-    'branch_role_id = ? AND permission_id = ?',
-    [managerRoleId, viewOrdersPermId],
-    { branch_role_id: managerRoleId, permission_id: viewOrdersPermId }
-  );
+  await assignRolePermissions(managerRoleId, 'all');
 
   await getOrCreate(
     'users',

@@ -137,7 +137,8 @@ COMMIT;
 ALTER TABLE products
   ADD COLUMN merchant_id INT NULL AFTER branch_id,
   ADD COLUMN short_description VARCHAR(500) NULL AFTER description,
-  ADD COLUMN base_price DECIMAL(12,2) NULL AFTER short_description,
+  ADD COLUMN provider_name VARCHAR(255) NULL AFTER short_description,
+  ADD COLUMN base_price DECIMAL(12,2) NULL AFTER provider_name,
   ADD COLUMN sku VARCHAR(120) NULL AFTER base_price,
   ADD COLUMN min_order_quantity INT NOT NULL DEFAULT 1 AFTER sku,
   ADD COLUMN max_order_quantity INT NULL AFTER min_order_quantity,

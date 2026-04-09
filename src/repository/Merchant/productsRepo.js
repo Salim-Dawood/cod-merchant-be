@@ -3,9 +3,12 @@ const pool = require('../../db');
 
 const repo = createRepo('products', [
   'branch_id',
+  'merchant_id',
   'name',
   'slug',
   'description',
+  'provider_name',
+  'base_price',
   'moq',
   'status',
   'is_active',
