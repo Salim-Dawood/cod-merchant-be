@@ -219,35 +219,67 @@ async function ensureGuestBuyer(connection, sessionId, payload = {}) {
 
 async function listProducts(req, res, next) {
   try {
-    const [rows] = await pool.query(
-      `SELECT
-         p.id,
-         p.name,
-         p.slug,
-         p.description,
-         p.base_price,
-         p.provider_name,
-         p.branch_id,
-         b.name AS branch_name,
-         b.merchant_id,
-         m.name AS merchant_name,
-         p.status,
-         p.is_active,
-         pi.url AS image_url
-       FROM products p
-       JOIN branches b ON b.id = p.branch_id
-       JOIN merchants m ON m.id = b.merchant_id
-       LEFT JOIN product_images pi
-         ON pi.id = (
-           SELECT id
-           FROM product_images
-           WHERE product_id = p.id AND is_active = 1
-           ORDER BY is_primary DESC, sort_order ASC, id ASC
-           LIMIT 1
-         )
-       ORDER BY p.id DESC`
-    );
-    return res.json(rows);
+    const connection = await pool.getConnection();
+    try {
+      const [productColumnsRows] = await connection.query('SHOW COLUMNS FROM products');
+      const [imageColumnsRows] = await connection.query('SHOW COLUMNS FROM product_images');
+      const productColumns = new Set(productColumnsRows.map((row) => row.Field));
+      const imageColumns = new Set(imageColumnsRows.map((row) => row.Field));
+
+      const productSelect = [
+        'p.id',
+        productColumns.has('name') ? 'p.name' : `CONCAT('Product #', p.id) AS name`,
+        productColumns.has('slug') ? 'p.slug' : 'NULL AS slug',
+        productColumns.has('description') ? 'p.description' : 'NULL AS description',
+        productColumns.has('base_price') ? 'p.base_price' : '0 AS base_price',
+        productColumns.has('provider_name') ? 'p.provider_name' : 'NULL AS provider_name',
+        productColumns.has('branch_id') ? 'p.branch_id' : 'NULL AS branch_id',
+        'b.name AS branch_name',
+        'b.merchant_id',
+        'm.name AS merchant_name',
+        productColumns.has('status') ? 'p.status' : `'active' AS status`,
+        productColumns.has('is_active') ? 'p.is_active' : '1 AS is_active',
+        'pi.url AS image_url'
+      ];
+
+      const imageWhere = ['product_id = p.id'];
+      if (imageColumns.has('is_active')) {
+        imageWhere.push('is_active = 1');
+      }
+
+      const imageOrder = [];
+      if (imageColumns.has('is_primary')) {
+        imageOrder.push('is_primary DESC');
+      }
+      if (imageColumns.has('sort_order')) {
+        imageOrder.push('sort_order ASC');
+      } else if (imageColumns.has('position')) {
+        imageOrder.push('position ASC');
+      }
+      imageOrder.push('id ASC');
+
+      const query = `
+        SELECT
+          ${productSelect.join(',\n          ')}
+        FROM products p
+        JOIN branches b ON b.id = p.branch_id
+        JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN product_images pi
+          ON pi.id = (
+            SELECT id
+            FROM product_images
+            WHERE ${imageWhere.join(' AND ')}
+            ORDER BY ${imageOrder.join(', ')}
+            LIMIT 1
+          )
+        ORDER BY p.id DESC
+      `;
+
+      const [rows] = await connection.query(query);
+      return res.json(rows);
+    } finally {
+      connection.release();
+    }
   } catch (err) {
     return next(err);
   }
