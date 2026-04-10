@@ -10,6 +10,10 @@ const GUEST_PAYMENT_METHODS = [
   { id: 'bank_transfer', type: 'bank_transfer', label: 'Bank Transfer' }
 ];
 
+function isMissingSchemaError(err) {
+  return Boolean(err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR'));
+}
+
 function toAmount(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) {
@@ -222,7 +226,11 @@ async function listProducts(req, res, next) {
     const connection = await pool.getConnection();
     try {
       const [productColumnsRows] = await connection.query('SHOW COLUMNS FROM products');
-      const [imageColumnsRows] = await connection.query('SHOW COLUMNS FROM product_images');
+      const [imageTableRows] = await connection.query("SHOW TABLES LIKE 'product_images'");
+      const hasProductImages = Array.isArray(imageTableRows) && imageTableRows.length > 0;
+      const imageColumnsRows = hasProductImages
+        ? (await connection.query('SHOW COLUMNS FROM product_images'))[0]
+        : [];
       const productColumns = new Set(productColumnsRows.map((row) => row.Field));
       const imageColumns = new Set(imageColumnsRows.map((row) => row.Field));
 
@@ -258,20 +266,24 @@ async function listProducts(req, res, next) {
       }
       imageOrder.push('id ASC');
 
+      const imageJoin = hasProductImages
+        ? `LEFT JOIN product_images pi
+             ON pi.id = (
+               SELECT id
+               FROM product_images
+               WHERE ${imageWhere.join(' AND ')}
+               ORDER BY ${imageOrder.join(', ')}
+               LIMIT 1
+             )`
+        : 'LEFT JOIN (SELECT NULL AS id, NULL AS url) pi ON 1 = 0';
+
       const query = `
         SELECT
           ${productSelect.join(',\n          ')}
         FROM products p
         JOIN branches b ON b.id = p.branch_id
         JOIN merchants m ON m.id = b.merchant_id
-        LEFT JOIN product_images pi
-          ON pi.id = (
-            SELECT id
-            FROM product_images
-            WHERE ${imageWhere.join(' AND ')}
-            ORDER BY ${imageOrder.join(', ')}
-            LIMIT 1
-          )
+        ${imageJoin}
         ORDER BY p.id DESC
       `;
 
@@ -296,6 +308,16 @@ async function getCart(req, res, next) {
     const cart = await buildCartResponse(connection, sessionId);
     return res.json(cart);
   } catch (err) {
+    if (isMissingSchemaError(err)) {
+      return res.json({
+        cart_id: null,
+        status: 'unavailable',
+        items: [],
+        item_count: 0,
+        total_quantity: 0,
+        total_amount: 0
+      });
+    }
     return next(err);
   } finally {
     connection.release();
@@ -401,6 +423,9 @@ async function addCartItem(req, res, next) {
     return res.status(201).json(cartResponse);
   } catch (err) {
     await connection.rollback();
+    if (isMissingSchemaError(err)) {
+      return res.status(400).json({ error: 'Cart is not available yet. Please ask admin to run DB migration.' });
+    }
     return next(err);
   } finally {
     connection.release();
@@ -456,6 +481,9 @@ async function updateCartItem(req, res, next) {
     return res.json(cartResponse);
   } catch (err) {
     await connection.rollback();
+    if (isMissingSchemaError(err)) {
+      return res.status(400).json({ error: 'Cart is not available yet. Please ask admin to run DB migration.' });
+    }
     return next(err);
   } finally {
     connection.release();
@@ -481,6 +509,9 @@ async function removeCartItem(req, res, next) {
     const cartResponse = await buildCartResponse(connection, sessionId);
     return res.json(cartResponse);
   } catch (err) {
+    if (isMissingSchemaError(err)) {
+      return res.status(400).json({ error: 'Cart is not available yet. Please ask admin to run DB migration.' });
+    }
     return next(err);
   } finally {
     connection.release();
@@ -589,6 +620,9 @@ async function checkout(req, res, next) {
     return res.status(201).json(orderRows[0] || null);
   } catch (err) {
     await connection.rollback();
+    if (isMissingSchemaError(err)) {
+      return res.status(400).json({ error: 'Checkout is not available yet. Please ask admin to run DB migration.' });
+    }
     return next(err);
   } finally {
     connection.release();
