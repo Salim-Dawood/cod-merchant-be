@@ -19,6 +19,7 @@ const productsRoutes = require('./Merchant/products');
 const categoriesRoutes = require('./Merchant/categories');
 const productImagesRoutes = require('./Merchant/productImages');
 const productCategoriesRoutes = require('./Merchant/productCategories');
+const publicRoutes = require('./public');
 
 const router = express.Router();
 
@@ -37,6 +38,7 @@ function allowPlatformOrMerchantRead(permissionMap) {
 router.use('/platform', platformRoutes);
 router.use('/merchant', merchantRoutes);
 router.use('/buyer', buyerRoutes);
+router.use('/public', publicRoutes);
 
 router.use(
   '/platform-admins',
