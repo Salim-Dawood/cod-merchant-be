@@ -245,7 +245,6 @@ async function listProducts(req, res, next) {
            ORDER BY is_primary DESC, sort_order ASC, id ASC
            LIMIT 1
          )
-       WHERE p.status = 'active' AND (p.is_active = 1 OR p.is_active IS NULL)
        ORDER BY p.id DESC`
     );
     return res.json(rows);
