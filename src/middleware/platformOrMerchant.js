@@ -75,6 +75,10 @@ function allowPlatformOrMerchant(permissionMap) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
       req.merchant = payload;
+      // Merchants can fully manage merchant-area resources.
+      if (req.merchant?.type === 'merchant') {
+        return next();
+      }
       const method = req.method === 'HEAD' ? 'GET' : req.method;
       const required = permissionMap[method];
       if (!required) {
