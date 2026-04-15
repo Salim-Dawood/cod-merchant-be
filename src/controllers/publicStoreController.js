@@ -5,9 +5,7 @@ const { addError, hasErrors, isPositiveNumber } = require('../utils/validation')
 
 const GUEST_COOKIE = 'guest_session_id';
 const GUEST_PAYMENT_METHODS = [
-  { id: 'cash_on_delivery', type: 'cash_on_delivery', label: 'Cash on Delivery' },
-  { id: 'credit_card', type: 'credit_card', label: 'Credit Card' },
-  { id: 'bank_transfer', type: 'bank_transfer', label: 'Bank Transfer' }
+  { id: 'credit_card', type: 'credit_card', label: 'Credit Card' }
 ];
 
 function isMissingSchemaError(err) {
@@ -93,7 +91,7 @@ function validateCardExpiry(monthRaw, yearRaw) {
 
 function validateGuestPayment(selectedPayment, payload = {}) {
   if (selectedPayment !== 'credit_card') {
-    return { paymentStatus: 'pending', orderPaymentStatus: 'pending', gatewayResponse: null };
+    throw new Error('Only credit_card payment is allowed for guest checkout');
   }
 
   const paymentDetails = payload.payment_details && typeof payload.payment_details === 'object'
