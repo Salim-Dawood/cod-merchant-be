@@ -7,6 +7,8 @@
     "start": "node src/server.js",
     "dev": "node src/server.js",
     "seed": "node src/seed/index.js",
+    "db:run-sql": "node src/scripts/run-sql-file.js",
+    "db:migrate:ecommerce": "node src/scripts/run-sql-file.js src/seed/safe_ecommerce_backfill.sql",
     "hash-passwords": "node src/scripts/hash-passwords.js",
     "client": "npm --prefix frontend run dev"
   },
