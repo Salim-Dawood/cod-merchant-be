@@ -14,6 +14,11 @@ function isMissingSchemaError(err) {
   return Boolean(err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR'));
 }
 
+async function getTableColumns(connection, tableName) {
+  const [rows] = await connection.query(`SHOW COLUMNS FROM ${tableName}`);
+  return new Set(rows.map((row) => row.Field || row.COLUMN_NAME));
+}
+
 function toAmount(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) {
@@ -70,20 +75,25 @@ async function getOrCreateGuestCart(connection, sessionId) {
 }
 
 async function listCartItems(connection, cartId) {
+  const productColumns = await getTableColumns(connection, 'products');
+  const cartItemColumns = await getTableColumns(connection, 'cart_items');
+  const variantIdSelect = cartItemColumns.has('variant_id') ? 'ci.variant_id' : 'NULL AS variant_id';
+  const skuSelect = productColumns.has('sku') ? 'p.sku AS sku' : 'NULL AS sku';
+  const statusSelect = productColumns.has('status') ? 'p.status AS product_status' : `'active' AS product_status`;
   const [rows] = await connection.query(
     `SELECT
        ci.id,
        ci.cart_id,
        ci.product_id,
-       ci.variant_id,
+       ${variantIdSelect},
        ci.merchant_id,
        ci.branch_id,
        ci.quantity,
        ci.unit_price,
        ci.subtotal,
        p.name AS product_name,
-       p.sku AS sku,
-       p.status AS product_status
+       ${skuSelect},
+       ${statusSelect}
      FROM cart_items ci
      JOIN products p ON p.id = ci.product_id
      WHERE ci.cart_id = ?
@@ -130,18 +140,22 @@ async function buildCartResponse(connection, sessionId) {
 }
 
 async function loadProductForOrdering(connection, productId) {
+  const productColumns = await getTableColumns(connection, 'products');
+  const selectParts = [
+    'p.id',
+    productColumns.has('name') ? 'p.name' : 'NULL AS name',
+    productColumns.has('sku') ? 'p.sku' : 'NULL AS sku',
+    productColumns.has('base_price') ? 'p.base_price' : '0 AS base_price',
+    productColumns.has('min_order_quantity') ? 'p.min_order_quantity' : '1 AS min_order_quantity',
+    productColumns.has('max_order_quantity') ? 'p.max_order_quantity' : 'NULL AS max_order_quantity',
+    productColumns.has('branch_id') ? 'p.branch_id' : 'NULL AS branch_id',
+    productColumns.has('merchant_id') ? 'p.merchant_id' : 'NULL AS merchant_id',
+    productColumns.has('status') ? 'p.status' : `'active' AS status`,
+    productColumns.has('is_active') ? 'p.is_active' : '1 AS is_active'
+  ];
   const [rows] = await connection.query(
     `SELECT
-       p.id,
-       p.name,
-       p.sku,
-       p.base_price,
-       p.min_order_quantity,
-       p.max_order_quantity,
-       p.branch_id,
-       p.merchant_id,
-       p.status,
-       p.is_active
+       ${selectParts.join(',\n       ')}
      FROM products p
      WHERE p.id = ?
      LIMIT 1`,
@@ -343,6 +357,7 @@ async function addCartItem(req, res, next) {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
+    const cartItemColumns = await getTableColumns(connection, 'cart_items');
     const product = await loadProductForOrdering(connection, productId);
     if (!product) {
       await connection.rollback();
@@ -383,13 +398,16 @@ async function addCartItem(req, res, next) {
 
     const minQty = Number(product.min_order_quantity || 1);
     const maxQty = product.max_order_quantity ? Number(product.max_order_quantity) : null;
-    const [lineRows] = await connection.query(
-      `SELECT id, quantity
-       FROM cart_items
-       WHERE cart_id = ? AND product_id = ? AND variant_id IS NULL
-       LIMIT 1`,
-      [cart.id, productId]
-    );
+    const existingLineQuery = cartItemColumns.has('variant_id')
+      ? `SELECT id, quantity
+         FROM cart_items
+         WHERE cart_id = ? AND product_id = ? AND variant_id IS NULL
+         LIMIT 1`
+      : `SELECT id, quantity
+         FROM cart_items
+         WHERE cart_id = ? AND product_id = ?
+         LIMIT 1`;
+    const [lineRows] = await connection.query(existingLineQuery, [cart.id, productId]);
     const existingLine = lineRows[0] || null;
     const nextQuantity = Number(existingLine?.quantity || 0) + quantity;
     if (nextQuantity < minQty) {
@@ -410,11 +428,18 @@ async function addCartItem(req, res, next) {
         [nextQuantity, unitPrice, nextSubtotal, existingLine.id]
       );
     } else {
+      const insertColumns = ['cart_id', 'product_id', 'merchant_id', 'branch_id', 'quantity', 'unit_price', 'subtotal'];
+      const insertValues = [cart.id, productId, Number(product.merchant_id), Number(product.branch_id), nextQuantity, unitPrice, nextSubtotal];
+      if (cartItemColumns.has('variant_id')) {
+        insertColumns.splice(2, 0, 'variant_id');
+        insertValues.splice(2, 0, null);
+      }
+      const placeholders = insertColumns.map(() => '?').join(', ');
       await connection.query(
         `INSERT INTO cart_items
-         (cart_id, product_id, variant_id, merchant_id, branch_id, quantity, unit_price, subtotal)
-         VALUES (?, ?, NULL, ?, ?, ?, ?, ?)`,
-        [cart.id, productId, Number(product.merchant_id), Number(product.branch_id), nextQuantity, unitPrice, nextSubtotal]
+         (${insertColumns.join(', ')})
+         VALUES (${placeholders})`,
+        insertValues
       );
     }
 
