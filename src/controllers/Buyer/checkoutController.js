@@ -164,18 +164,18 @@ async function createOrderFromItems(connection, {
     throw new Error('Cart contains items from multiple branches or merchants');
   }
 
-  let paymentMethod = null;
-  if (paymentMethodId) {
-    const [methodRows] = await connection.query(
-      `SELECT id, type, is_default
-       FROM buyer_payment_methods
-       WHERE id = ? AND buyer_id = ?`,
-      [paymentMethodId, buyerId]
-    );
-    paymentMethod = methodRows[0] || null;
-    if (!paymentMethod) {
-      throw new Error('Selected payment method is invalid');
-    }
+  if (!paymentMethodId) {
+    throw new Error('payment_method_id is required');
+  }
+  const [methodRows] = await connection.query(
+    `SELECT id, type, is_default
+     FROM buyer_payment_methods
+     WHERE id = ? AND buyer_id = ?`,
+    [paymentMethodId, buyerId]
+  );
+  const paymentMethod = methodRows[0] || null;
+  if (!paymentMethod) {
+    throw new Error('Selected payment method is invalid');
   }
 
   const subtotal = toAmount(
@@ -228,14 +228,12 @@ async function createOrderFromItems(connection, {
     [orderId, 'pending', 'Order created', buyerUserId]
   );
 
-  if (paymentMethod) {
-    await connection.query(
-      `INSERT INTO payments
-       (order_id, buyer_id, payment_method_id, amount, currency, status, payment_gateway)
-       VALUES (?, ?, ?, ?, 'USD', 'pending', ?)`,
-      [orderId, buyerId, paymentMethod.id, totalAmount, paymentMethod.type]
-    );
-  }
+  await connection.query(
+    `INSERT INTO payments
+     (order_id, buyer_id, payment_method_id, amount, currency, status, payment_gateway)
+     VALUES (?, ?, ?, ?, 'USD', 'pending', ?)`,
+    [orderId, buyerId, paymentMethod.id, totalAmount, paymentMethod.type]
+  );
 
   const [orderRows] = await connection.query(
     `SELECT id, order_number, buyer_id, buyer_user_id, merchant_id, branch_id, subtotal, total_amount, currency, status, payment_status, created_at
@@ -629,8 +627,12 @@ async function checkoutCart(req, res, next) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const paymentMethodId = req.body?.payment_method_id ? Number(req.body.payment_method_id) : null;
-  if (paymentMethodId !== null && !isPositiveNumber(paymentMethodId)) {
+  const paymentMethodIdRaw = req.body?.payment_method_id;
+  if (paymentMethodIdRaw === undefined || paymentMethodIdRaw === null || paymentMethodIdRaw === '') {
+    return res.status(400).json({ error: 'payment_method_id is required' });
+  }
+  const paymentMethodId = Number(paymentMethodIdRaw);
+  if (!isPositiveNumber(paymentMethodId)) {
     return res.status(400).json({ error: 'payment_method_id must be a positive number' });
   }
 
@@ -674,6 +676,9 @@ async function checkoutCart(req, res, next) {
     if (err?.message === 'Selected payment method is invalid') {
       return res.status(400).json({ error: err.message });
     }
+    if (err?.message === 'payment_method_id is required') {
+      return res.status(400).json({ error: err.message });
+    }
     if (
       err?.message === 'Cart is empty' ||
       err?.message === 'Cart merchant/branch configuration is invalid' ||
@@ -695,8 +700,12 @@ async function createOrder(req, res, next) {
   }
 
   const payload = req.body || {};
-  const paymentMethodId = payload.payment_method_id ? Number(payload.payment_method_id) : null;
-  if (paymentMethodId !== null && !isPositiveNumber(paymentMethodId)) {
+  const paymentMethodIdRaw = payload.payment_method_id;
+  if (paymentMethodIdRaw === undefined || paymentMethodIdRaw === null || paymentMethodIdRaw === '') {
+    return res.status(400).json({ errors: { payment_method_id: 'payment_method_id is required' } });
+  }
+  const paymentMethodId = Number(paymentMethodIdRaw);
+  if (!isPositiveNumber(paymentMethodId)) {
     return res.status(400).json({ errors: { payment_method_id: 'payment_method_id must be a positive number' } });
   }
 
@@ -774,7 +783,7 @@ async function createOrder(req, res, next) {
     return res.status(201).json(order);
   } catch (err) {
     await connection.rollback();
-    if (err?.message === 'Selected payment method is invalid') {
+    if (err?.message === 'payment_method_id is required' || err?.message === 'Selected payment method is invalid') {
       return res.status(400).json({ error: err.message });
     }
     return next(err);
