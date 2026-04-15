@@ -34,6 +34,108 @@ function buildOrderNumber() {
   return `ORD-${datePart}-${randomPart}`;
 }
 
+function normalizeDigits(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidLuhn(cardNumber) {
+  const digits = normalizeDigits(cardNumber);
+  if (digits.length < 12 || digits.length > 19) {
+    return false;
+  }
+  let sum = 0;
+  let shouldDouble = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (shouldDouble) {
+      digit *= 2;
+      if (digit > 9) {
+        digit -= 9;
+      }
+    }
+    sum += digit;
+    shouldDouble = !shouldDouble;
+  }
+  return sum % 10 === 0;
+}
+
+function detectCardBrand(cardNumberDigits) {
+  if (/^4/.test(cardNumberDigits)) {
+    return 'visa';
+  }
+  if (/^5[1-5]/.test(cardNumberDigits) || /^2(2[2-9]|[3-6]\d|7[01]|720)/.test(cardNumberDigits)) {
+    return 'mastercard';
+  }
+  if (/^3[47]/.test(cardNumberDigits)) {
+    return 'amex';
+  }
+  if (/^6(?:011|5)/.test(cardNumberDigits)) {
+    return 'discover';
+  }
+  return 'card';
+}
+
+function validateCardExpiry(monthRaw, yearRaw) {
+  const month = Number(monthRaw);
+  const year = Number(yearRaw);
+  if (!Number.isInteger(month) || month < 1 || month > 12) {
+    return null;
+  }
+  if (!Number.isInteger(year) || year < 2000 || year > 9999) {
+    return null;
+  }
+  const expiryDate = new Date(year, month, 0, 23, 59, 59, 999);
+  if (expiryDate.getTime() < Date.now()) {
+    return null;
+  }
+  return { month, year };
+}
+
+function validateGuestPayment(selectedPayment, payload = {}) {
+  if (selectedPayment !== 'credit_card') {
+    return { paymentStatus: 'pending', orderPaymentStatus: 'pending', gatewayResponse: null };
+  }
+
+  const paymentDetails = payload.payment_details && typeof payload.payment_details === 'object'
+    ? payload.payment_details
+    : null;
+  if (!paymentDetails) {
+    throw new Error('payment_details are required for credit_card');
+  }
+
+  const cardholderName = String(paymentDetails.cardholder_name || '').trim();
+  const cardNumberDigits = normalizeDigits(paymentDetails.card_number);
+  const cvvDigits = normalizeDigits(paymentDetails.cvv);
+  const expiry = validateCardExpiry(paymentDetails.expiry_month, paymentDetails.expiry_year);
+
+  if (!cardholderName) {
+    throw new Error('cardholder_name is required');
+  }
+  if (!isValidLuhn(cardNumberDigits)) {
+    throw new Error('Invalid card_number');
+  }
+  if (!expiry) {
+    throw new Error('Invalid card expiry');
+  }
+  if (!/^\d{3,4}$/.test(cvvDigits)) {
+    throw new Error('Invalid CVV');
+  }
+
+  return {
+    paymentStatus: 'completed',
+    orderPaymentStatus: 'paid',
+    gatewayResponse: {
+      provider: 'demo_card_gateway',
+      approved: true,
+      card_brand: detectCardBrand(cardNumberDigits),
+      card_last4: cardNumberDigits.slice(-4),
+      cardholder_name: cardholderName,
+      expiry_month: expiry.month,
+      expiry_year: expiry.year
+    }
+  };
+}
+
 function cookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
   return {
@@ -550,6 +652,12 @@ async function checkout(req, res, next) {
   if (!selectedPayment || !GUEST_PAYMENT_METHODS.some((method) => method.id === selectedPayment)) {
     return res.status(400).json({ error: 'Valid payment_method is required' });
   }
+  let paymentValidation;
+  try {
+    paymentValidation = validateGuestPayment(selectedPayment, payload);
+  } catch (validationError) {
+    return res.status(400).json({ error: validationError.message || 'Invalid payment details' });
+  }
 
   const connection = await pool.getConnection();
   try {
@@ -575,10 +683,11 @@ async function checkout(req, res, next) {
     const subtotal = toAmount(cartItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0));
     const totalAmount = subtotal;
     const orderNumber = buildOrderNumber();
+    const orderPaymentStatus = paymentValidation.orderPaymentStatus || 'pending';
     const [orderResult] = await connection.query(
       `INSERT INTO orders
        (order_number, buyer_id, buyer_user_id, merchant_id, branch_id, subtotal, total_amount, currency, status, payment_status, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', 'pending', 'pending', ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', 'pending', ?, ?)`,
       [
         orderNumber,
         buyerId,
@@ -587,6 +696,7 @@ async function checkout(req, res, next) {
         branchId,
         subtotal,
         totalAmount,
+        orderPaymentStatus,
         `Guest checkout (${email})${payload.notes ? ` - ${String(payload.notes).trim()}` : ''}`
       ]
     );
@@ -616,11 +726,29 @@ async function checkout(req, res, next) {
       [orderId, buyerUserId]
     );
 
+    const paymentColumns = await getTableColumns(connection, 'payments');
+    const insertColumns = ['order_id', 'buyer_id', 'payment_method_id', 'amount', 'currency', 'status', 'payment_gateway'];
+    const insertValues = [
+      orderId,
+      buyerId,
+      null,
+      totalAmount,
+      'USD',
+      paymentValidation.paymentStatus || 'pending',
+      selectedPayment
+    ];
+    if (paymentColumns.has('gateway_response')) {
+      insertColumns.push('gateway_response');
+      insertValues.push(
+        paymentValidation.gatewayResponse ? JSON.stringify(paymentValidation.gatewayResponse) : null
+      );
+    }
+    const placeholders = insertColumns.map(() => '?').join(', ');
     await connection.query(
       `INSERT INTO payments
-       (order_id, buyer_id, payment_method_id, amount, currency, status, payment_gateway)
-       VALUES (?, ?, NULL, ?, 'USD', 'pending', ?)`,
-      [orderId, buyerId, selectedPayment]
+       (${insertColumns.join(', ')})
+       VALUES (${placeholders})`,
+      insertValues
     );
 
     await connection.query(
