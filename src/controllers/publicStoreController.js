@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('../db');
 const { hashPassword } = require('../utils/password');
+const { sendEmail } = require('../utils/mailer');
 const { addError, hasErrors, isPositiveNumber } = require('../utils/validation');
 
 const GUEST_COOKIE = 'guest_session_id';
@@ -335,18 +336,180 @@ async function ensureGuestBuyer(connection, sessionId, payload = {}) {
   return { buyerId, buyerUserId, email };
 }
 
+async function listProductImages(connection, productIds = []) {
+  const ids = Array.isArray(productIds)
+    ? productIds.map((id) => Number(id)).filter((id) => Number.isInteger(id) && id > 0)
+    : [];
+  if (!ids.length) {
+    return new Map();
+  }
+  const [imageTableRows] = await connection.query("SHOW TABLES LIKE 'product_images'");
+  const hasProductImages = Array.isArray(imageTableRows) && imageTableRows.length > 0;
+  if (!hasProductImages) {
+    return new Map();
+  }
+
+  const imageColumns = await getTableColumns(connection, 'product_images');
+  const where = [`product_id IN (${ids.map(() => '?').join(', ')})`];
+  if (imageColumns.has('is_active')) {
+    where.push('is_active = 1');
+  }
+  const orderBy = [];
+  if (imageColumns.has('is_primary')) {
+    orderBy.push('is_primary DESC');
+  }
+  if (imageColumns.has('sort_order')) {
+    orderBy.push('sort_order ASC');
+  } else if (imageColumns.has('position')) {
+    orderBy.push('position ASC');
+  }
+  orderBy.push('id ASC');
+
+  const [rows] = await connection.query(
+    `SELECT id, product_id, url
+     FROM product_images
+     WHERE ${where.join(' AND ')}
+     ORDER BY ${orderBy.join(', ')}`,
+    ids
+  );
+  const map = new Map();
+  for (const row of rows) {
+    const productId = Number(row.product_id);
+    const existing = map.get(productId) || [];
+    existing.push({
+      id: Number(row.id),
+      url: row.url || null
+    });
+    map.set(productId, existing);
+  }
+  return map;
+}
+
+function attachImagesToProducts(products = [], productImagesById = new Map()) {
+  return (Array.isArray(products) ? products : []).map((product) => {
+    const images = productImagesById.get(Number(product.id)) || [];
+    const imageUrls = images.map((image) => image.url).filter(Boolean);
+    return {
+      ...product,
+      images,
+      image_urls: imageUrls,
+      image_url: imageUrls[0] || null
+    };
+  });
+}
+
+function normalizeAddressPayload(value = {}, defaultLabel) {
+  const payload = value && typeof value === 'object' ? value : {};
+  return {
+    label: String(payload.label || defaultLabel || 'Address').trim().slice(0, 120),
+    contact_name: String(payload.contact_name || '').trim().slice(0, 255) || null,
+    contact_phone: String(payload.contact_phone || '').trim().slice(0, 40) || null,
+    street_address: String(payload.street_address || '').trim(),
+    city: String(payload.city || '').trim().slice(0, 120) || null,
+    state: String(payload.state || '').trim().slice(0, 120) || null,
+    postal_code: String(payload.postal_code || '').trim().slice(0, 40) || null,
+    country: String(payload.country || '').trim().slice(0, 120) || null
+  };
+}
+
+function validateGuestCheckoutPayload(payload = {}) {
+  const errors = {};
+  const email = String(payload.email || '').trim().toLowerCase();
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    addError(errors, 'email', 'Valid email is required');
+  }
+  const firstName = String(payload.first_name || '').trim();
+  const lastName = String(payload.last_name || '').trim();
+  if (!firstName) {
+    addError(errors, 'first_name', 'first_name is required');
+  }
+  if (!lastName) {
+    addError(errors, 'last_name', 'last_name is required');
+  }
+
+  const shipping = normalizeAddressPayload(payload.shipping_address, 'Shipping');
+  const useShippingAsBilling = Boolean(payload.use_shipping_as_billing);
+  const billing = useShippingAsBilling
+    ? shipping
+    : normalizeAddressPayload(payload.billing_address, 'Billing');
+
+  if (!shipping.street_address) {
+    addError(errors, 'shipping_address.street_address', 'Shipping street_address is required');
+  }
+  if (!billing.street_address) {
+    addError(errors, 'billing_address.street_address', 'Billing street_address is required');
+  }
+
+  return {
+    errors,
+    normalized: {
+      email,
+      first_name: firstName,
+      last_name: lastName,
+      phone: payload.phone ? String(payload.phone).trim() : null,
+      shipping_address: shipping,
+      billing_address: billing
+    }
+  };
+}
+
+async function createBuyerAddress(connection, buyerId, addressPayload) {
+  const payload = normalizeAddressPayload(addressPayload, 'Address');
+  const [result] = await connection.query(
+    `INSERT INTO buyer_addresses
+     (buyer_id, label, contact_name, contact_phone, street_address, city, state, postal_code, country, is_default)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+    [
+      Number(buyerId),
+      payload.label || 'Address',
+      payload.contact_name,
+      payload.contact_phone,
+      payload.street_address,
+      payload.city,
+      payload.state,
+      payload.postal_code,
+      payload.country
+    ]
+  );
+  return result.insertId;
+}
+
+async function sendOrderConfirmationEmail(payload = {}) {
+  const to = String(payload.email || '').trim();
+  if (!to) {
+    return;
+  }
+  const orderNumber = payload.order_number || payload.orderNumber || '';
+  const totalAmount = toAmount(payload.total_amount);
+  const currency = payload.currency || 'USD';
+  const subject = `Order Confirmation - ${orderNumber || 'Order Received'}`;
+  const text = [
+    `Thank you for your purchase, ${payload.first_name || 'Customer'}!`,
+    '',
+    `Order: ${orderNumber || 'N/A'}`,
+    `Total: ${currency} ${totalAmount.toFixed(2)}`,
+    `Status: ${payload.status || 'pending'}`,
+    '',
+    'We have received your order and will update you once it is processed.'
+  ].join('\n');
+  await sendEmail({
+    to,
+    subject,
+    text,
+    html: `<p>Thank you for your purchase, ${payload.first_name || 'Customer'}.</p>
+<p><strong>Order:</strong> ${orderNumber || 'N/A'}<br/>
+<strong>Total:</strong> ${currency} ${totalAmount.toFixed(2)}<br/>
+<strong>Status:</strong> ${payload.status || 'pending'}</p>
+<p>We have received your order and will update you once it is processed.</p>`
+  });
+}
+
 async function listProducts(req, res, next) {
   try {
     const connection = await pool.getConnection();
     try {
       const [productColumnsRows] = await connection.query('SHOW COLUMNS FROM products');
-      const [imageTableRows] = await connection.query("SHOW TABLES LIKE 'product_images'");
-      const hasProductImages = Array.isArray(imageTableRows) && imageTableRows.length > 0;
-      const imageColumnsRows = hasProductImages
-        ? (await connection.query('SHOW COLUMNS FROM product_images'))[0]
-        : [];
       const productColumns = new Set(productColumnsRows.map((row) => row.Field));
-      const imageColumns = new Set(imageColumnsRows.map((row) => row.Field));
 
       const productSelect = [
         'p.id',
@@ -360,36 +523,8 @@ async function listProducts(req, res, next) {
         'b.merchant_id',
         'm.name AS merchant_name',
         productColumns.has('status') ? 'p.status' : `'active' AS status`,
-        productColumns.has('is_active') ? 'p.is_active' : '1 AS is_active',
-        'pi.url AS image_url'
+        productColumns.has('is_active') ? 'p.is_active' : '1 AS is_active'
       ];
-
-      const imageWhere = ['product_id = p.id'];
-      if (imageColumns.has('is_active')) {
-        imageWhere.push('is_active = 1');
-      }
-
-      const imageOrder = [];
-      if (imageColumns.has('is_primary')) {
-        imageOrder.push('is_primary DESC');
-      }
-      if (imageColumns.has('sort_order')) {
-        imageOrder.push('sort_order ASC');
-      } else if (imageColumns.has('position')) {
-        imageOrder.push('position ASC');
-      }
-      imageOrder.push('id ASC');
-
-      const imageJoin = hasProductImages
-        ? `LEFT JOIN product_images pi
-             ON pi.id = (
-               SELECT id
-               FROM product_images
-               WHERE ${imageWhere.join(' AND ')}
-               ORDER BY ${imageOrder.join(', ')}
-               LIMIT 1
-             )`
-        : 'LEFT JOIN (SELECT NULL AS id, NULL AS url) pi ON 1 = 0';
 
       const query = `
         SELECT
@@ -397,12 +532,66 @@ async function listProducts(req, res, next) {
         FROM products p
         JOIN branches b ON b.id = p.branch_id
         JOIN merchants m ON m.id = b.merchant_id
-        ${imageJoin}
         ORDER BY p.id DESC
       `;
 
       const [rows] = await connection.query(query);
-      return res.json(rows);
+      const productIds = rows.map((row) => Number(row.id)).filter((id) => Number.isInteger(id) && id > 0);
+      const productImagesById = await listProductImages(connection, productIds);
+      return res.json(attachImagesToProducts(rows, productImagesById));
+    } finally {
+      connection.release();
+    }
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function getProductById(req, res, next) {
+  const productId = Number(req.params?.id);
+  if (!isPositiveNumber(productId)) {
+    return res.status(400).json({ error: 'Invalid product id' });
+  }
+  try {
+    const connection = await pool.getConnection();
+    try {
+      const [productColumnsRows] = await connection.query('SHOW COLUMNS FROM products');
+      const productColumns = new Set(productColumnsRows.map((row) => row.Field));
+      const productSelect = [
+        'p.id',
+        productColumns.has('name') ? 'p.name' : `CONCAT('Product #', p.id) AS name`,
+        productColumns.has('slug') ? 'p.slug' : 'NULL AS slug',
+        productColumns.has('description') ? 'p.description' : 'NULL AS description',
+        productColumns.has('short_description') ? 'p.short_description' : 'NULL AS short_description',
+        productColumns.has('base_price') ? 'p.base_price' : '0 AS base_price',
+        productColumns.has('provider_name') ? 'p.provider_name' : 'NULL AS provider_name',
+        productColumns.has('sku') ? 'p.sku' : 'NULL AS sku',
+        productColumns.has('unit') ? 'p.unit' : 'NULL AS unit',
+        productColumns.has('weight') ? 'p.weight' : 'NULL AS weight',
+        productColumns.has('branch_id') ? 'p.branch_id' : 'NULL AS branch_id',
+        'b.name AS branch_name',
+        'b.merchant_id',
+        'm.name AS merchant_name',
+        productColumns.has('status') ? 'p.status' : `'active' AS status`,
+        productColumns.has('is_active') ? 'p.is_active' : '1 AS is_active'
+      ];
+      const [rows] = await connection.query(
+        `SELECT
+           ${productSelect.join(',\n           ')}
+         FROM products p
+         JOIN branches b ON b.id = p.branch_id
+         JOIN merchants m ON m.id = b.merchant_id
+         WHERE p.id = ?
+         LIMIT 1`,
+        [productId]
+      );
+      const product = rows[0];
+      if (!product) {
+        return res.status(404).json({ error: 'Product not found' });
+      }
+      const productImagesById = await listProductImages(connection, [productId]);
+      const response = attachImagesToProducts([product], productImagesById)[0];
+      return res.json(response);
     } finally {
       connection.release();
     }
@@ -656,6 +845,11 @@ async function checkout(req, res, next) {
   } catch (validationError) {
     return res.status(400).json({ error: validationError.message || 'Invalid payment details' });
   }
+  const checkoutValidation = validateGuestCheckoutPayload(payload);
+  if (hasErrors(checkoutValidation.errors)) {
+    return res.status(400).json({ errors: checkoutValidation.errors });
+  }
+  const normalizedCheckout = checkoutValidation.normalized;
 
   const connection = await pool.getConnection();
   try {
@@ -677,15 +871,28 @@ async function checkout(req, res, next) {
       return res.status(400).json({ error: 'Cart contains items from different branches/merchants' });
     }
 
-    const { buyerId, buyerUserId, email } = await ensureGuestBuyer(connection, sessionId, payload);
+    const { buyerId, buyerUserId, email } = await ensureGuestBuyer(connection, sessionId, {
+      ...payload,
+      ...normalizedCheckout
+    });
+    const shippingAddressId = await createBuyerAddress(
+      connection,
+      buyerId,
+      normalizedCheckout.shipping_address
+    );
+    const billingAddressId = await createBuyerAddress(
+      connection,
+      buyerId,
+      normalizedCheckout.billing_address
+    );
     const subtotal = toAmount(cartItems.reduce((sum, item) => sum + Number(item.subtotal || 0), 0));
     const totalAmount = subtotal;
     const orderNumber = buildOrderNumber();
     const orderPaymentStatus = paymentValidation.orderPaymentStatus || 'pending';
     const [orderResult] = await connection.query(
       `INSERT INTO orders
-       (order_number, buyer_id, buyer_user_id, merchant_id, branch_id, subtotal, total_amount, currency, status, payment_status, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', 'pending', ?, ?)`,
+       (order_number, buyer_id, buyer_user_id, merchant_id, branch_id, subtotal, total_amount, currency, status, payment_status, shipping_address_id, billing_address_id, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'USD', 'pending', ?, ?, ?, ?)`,
       [
         orderNumber,
         buyerId,
@@ -695,6 +902,8 @@ async function checkout(req, res, next) {
         subtotal,
         totalAmount,
         orderPaymentStatus,
+        shippingAddressId,
+        billingAddressId,
         `Guest checkout (${email})${payload.notes ? ` - ${String(payload.notes).trim()}` : ''}`
       ]
     );
@@ -763,12 +972,23 @@ async function checkout(req, res, next) {
 
     await connection.commit();
     const [orderRows] = await pool.query(
-      `SELECT id, order_number, total_amount, currency, status, payment_status, created_at
+      `SELECT id, order_number, total_amount, currency, status, payment_status, shipping_address_id, billing_address_id, created_at
        FROM orders
        WHERE id = ?`,
       [orderId]
     );
-    return res.status(201).json(orderRows[0] || null);
+    const orderResponse = orderRows[0] || null;
+    sendOrderConfirmationEmail({
+      email,
+      first_name: normalizedCheckout.first_name,
+      order_number: orderResponse?.order_number,
+      total_amount: orderResponse?.total_amount,
+      currency: orderResponse?.currency,
+      status: orderResponse?.status
+    }).catch((emailError) => {
+      console.error('[ORDER_CONFIRMATION_EMAIL_FAILED]', emailError?.message || emailError);
+    });
+    return res.status(201).json(orderResponse);
   } catch (err) {
     await connection.rollback();
     if (isMissingSchemaError(err)) {
@@ -782,6 +1002,7 @@ async function checkout(req, res, next) {
 
 module.exports = {
   listProducts,
+  getProductById,
   listPaymentMethods,
   getCart,
   addCartItem,

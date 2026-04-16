@@ -4,6 +4,7 @@ const controller = require('../controllers/publicStoreController');
 const router = express.Router();
 
 router.get('/products', controller.listProducts);
+router.get('/products/:id', controller.getProductById);
 router.get('/payment-methods', controller.listPaymentMethods);
 router.get('/cart', controller.getCart);
 router.post('/cart/items', controller.addCartItem);
