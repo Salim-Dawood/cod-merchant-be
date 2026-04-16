@@ -1,4 +1,5 @@
 const pool = require('../../db');
+const { sendEmail } = require('../../utils/mailer');
 const { addError, hasErrors, isPositiveNumber } = require('../../utils/validation');
 
 function toAmount(value) {
@@ -14,6 +15,55 @@ function buildOrderNumber() {
   const datePart = now.toISOString().slice(0, 10).replace(/-/g, '');
   const randomPart = Math.floor(100000 + Math.random() * 900000);
   return `ORD-${datePart}-${randomPart}`;
+}
+
+async function resolveBuyerEmailProfile(buyerUserId, fallbackEmail) {
+  const [rows] = await pool.query(
+    `SELECT id, first_name, last_name, email
+     FROM buyer_users
+     WHERE id = ?
+     LIMIT 1`,
+    [buyerUserId]
+  );
+  const profile = rows[0] || null;
+  return {
+    first_name: String(profile?.first_name || '').trim() || 'Customer',
+    last_name: String(profile?.last_name || '').trim() || '',
+    email: String(profile?.email || fallbackEmail || '').trim().toLowerCase()
+  };
+}
+
+async function sendBuyerOrderConfirmationEmail({ order, buyerUserId, fallbackEmail }) {
+  const profile = await resolveBuyerEmailProfile(buyerUserId, fallbackEmail);
+  if (!profile.email) {
+    return;
+  }
+
+  const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+  const orderNumber = order?.order_number || `#${order?.id || ''}`;
+  const total = toAmount(order?.total_amount);
+  const currency = order?.currency || 'USD';
+  const subject = `Order Confirmation - ${orderNumber}`;
+  const text = [
+    `Thank you for your order, ${fullName || 'Customer'}!`,
+    '',
+    `Order: ${orderNumber}`,
+    `Total: ${currency} ${total.toFixed(2)}`,
+    `Status: ${order?.status || 'pending'}`,
+    '',
+    'We received your order and will notify you on updates.'
+  ].join('\n');
+
+  await sendEmail({
+    to: profile.email,
+    subject,
+    text,
+    html: `<p>Thank you for your order, ${fullName || 'Customer'}.</p>
+<p><strong>Order:</strong> ${orderNumber}<br/>
+<strong>Total:</strong> ${currency} ${total.toFixed(2)}<br/>
+<strong>Status:</strong> ${order?.status || 'pending'}</p>
+<p>We received your order and will notify you on updates.</p>`
+  });
 }
 
 async function getOrCreateActiveCart(connection, buyerId, buyerUserId) {
@@ -670,6 +720,13 @@ async function checkoutCart(req, res, next) {
     );
 
     await connection.commit();
+    sendBuyerOrderConfirmationEmail({
+      order,
+      buyerUserId,
+      fallbackEmail: req.buyerUser?.email
+    }).catch((emailError) => {
+      console.error('[BUYER_ORDER_CONFIRMATION_EMAIL_FAILED]', emailError?.message || emailError);
+    });
     return res.status(201).json(order);
   } catch (err) {
     await connection.rollback();
@@ -780,6 +837,13 @@ async function createOrder(req, res, next) {
       ]
     });
     await connection.commit();
+    sendBuyerOrderConfirmationEmail({
+      order,
+      buyerUserId,
+      fallbackEmail: req.buyerUser?.email
+    }).catch((emailError) => {
+      console.error('[BUYER_ORDER_CONFIRMATION_EMAIL_FAILED]', emailError?.message || emailError);
+    });
     return res.status(201).json(order);
   } catch (err) {
     await connection.rollback();
