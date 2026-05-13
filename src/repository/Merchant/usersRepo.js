@@ -70,8 +70,16 @@ repo.findAllForMerchant = async (merchant) => {
   if (!merchantId) {
     return repo.findAll();
   }
-  const [rows] = await pool.query(`${baseQuery} WHERE u.merchant_id = ?`, [merchantId]);
-  return rows;
+  try {
+    const [rows] = await pool.query(`${baseQuery} WHERE u.merchant_id = ?`, [merchantId]);
+    return rows;
+  } catch (err) {
+    if (err && (err.code === 'ER_NO_SUCH_TABLE' || err.code === 'ER_BAD_FIELD_ERROR')) {
+      const [rows] = await pool.query('SELECT * FROM users WHERE merchant_id = ?', [merchantId]);
+      return rows;
+    }
+    throw err;
+  }
 };
 
 module.exports = repo;
